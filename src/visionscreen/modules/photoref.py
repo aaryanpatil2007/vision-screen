@@ -8,6 +8,13 @@ from visionscreen.report import Finding
 from visionscreen.synth.photoref import BRIGHT_THRESHOLD
 
 MAX_ABS_DIOPTERS = 10.0
+
+# Measured on real pupil images (bench_real_photoref): 18% of untouched crops
+# — no crescent present at all — still yield an estimate, because ordinary
+# highlights and iris texture can imitate a bright meridional profile. A
+# genuine crescent is stable frame to frame; artifacts scatter. Reject rather
+# than report when the estimates disagree.
+MAX_SPHERE_DISPERSION_D = 1.25
 PROFILE_ANGLES_DEG = np.arange(-60.0, 60.1, 5.0)
 MIN_PROFILE_POINTS = 5
 
@@ -139,6 +146,22 @@ def score_photoref(
     axes = [e[2] for e in estimates]
     s_med = statistics.median(spheres)
     s_std = statistics.pstdev(spheres)
+
+    if s_std > MAX_SPHERE_DISPERSION_D:
+        return Finding(
+            module="photorefraction",
+            summary=(
+                "The reflex measurements disagreed too much between frames to "
+                "give a refraction estimate. Ordinary highlights on the eye can "
+                "imitate the crescent this test looks for, and a real crescent "
+                "would be steady."
+            ),
+            tier="inconclusive",
+            metrics={"rejected_reason": "unstable across frames",
+                     "sphere_spread_d": round(s_std, 2), "frames": n},
+            retakes=["Retake in a fully dark room with the screen at maximum "
+                     "brightness, holding still."],
+        )
     consistent = s_std <= 0.75
     tier = "measured" if (valid_fraction >= 0.7 and n >= 5 and consistent) else "weak-signal"
     summary = (

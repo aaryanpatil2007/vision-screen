@@ -552,6 +552,37 @@ distance, a population the optotype behaves differently for — would not appear
 anywhere in it. That is exactly what comparison against a clinician is for, and
 it remains unrun.
 
+### 4.4f Photorefraction on real pupils
+
+Module 3's 0.027 D synthetic figure was the most precise claim in the project
+and the least tested against real imagery. The same injection technique applies:
+composite a crescent of known defocus onto a real pupil region found by the
+segmenter, then run the production measurement.
+
+| true sphere | detection | mean abs error |
+|---|---|---|
+| ±2.0 D | 1.00 | 0.073 / 0.086 D |
+| ±3.0 D | 1.00 | 0.172 / 0.167 D |
+| ±4.0 D | 1.00 | 0.297 / 0.325 D |
+| **overall** | **1.00** | **0.187 D** |
+
+Against 0.027 D on synthetic images — a sevenfold degradation, the same pattern
+as Hirschberg's twelvefold, and the third time in this project that a synthetic
+benchmark has overstated real performance by roughly an order of magnitude.
+
+Two things are worth noting. First, the error **scales with defocus magnitude**
+rather than being constant, which identifies it as a scale error propagating
+from pupil-radius estimation rather than a localisation error. Second, 0.187 D
+is still inside the ±0.25 D bias criterion used for refraction agreement, so
+the module survives the test — unlike alignment, which did not.
+
+**The null condition failed, though.** Running the measurement on untouched
+real crops, where no crescent exists and any estimate is by construction an
+artifact, **18% still produced one**: ordinary highlights and iris texture can
+imitate a bright meridional profile. The module now rejects a set of estimates
+whose spread exceeds 1.25 D rather than averaging artifacts into a confident
+number — the same guard, for the same reason, as alignment.
+
 ### 4.5 Why real sessions failed before
 
 Analysis of the real corpus found that **only 10.8% of real webcam eye crops
