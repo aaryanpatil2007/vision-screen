@@ -144,11 +144,13 @@ number derived from it:
 It can therefore bound agreement on large deviations in selected patients. It
 cannot estimate specificity, and it is not a substitute for §4.
 
-**Status: index built, images not retrieved.** NCBI and Europe PMC restrict
-figure-image endpoints by origin and all three routes returned 404/500 from the
-development environment. The tool records canonical image URLs and the PMC OA
-package lookup for each pair, so retrieval and scoring can run wherever access
-exists.
+**Status: index built, images not retrieved.** Direct figure endpoints return
+404/500, and `pmc.ncbi.nlm.nih.gov` serves a reCAPTCHA challenge to scripted
+clients. That is a deliberate access control and the right response is to use a
+sanctioned route rather than defeat it: the **PMC Open Access package service**
+(`oa.fcgi`, bulk FTP mirror) or an institutional subscription. The tool records
+the canonical image URL and OA package lookup for every pair so retrieval and
+scoring run unchanged wherever that access exists.
 
 ## 7. What this study still will not establish
 

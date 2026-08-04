@@ -127,11 +127,13 @@ def fetch(out_dir: Path, fetched_date: str, max_articles: int = 400) -> dict:
             errors.append(f"{pmcid}: {exc}")
             continue
         for fig in parse_figures(xml, pmcid):
-            # NOTE: figure images are NOT retrievable from every network.
-            # NCBI and Europe PMC both restrict direct image endpoints by
-            # origin, so this tool records the canonical locations and leaves
-            # retrieval to an environment that has access. The OA package is
-            # the supported bulk route.
+            # NOTE: figure images cannot be fetched automatically from here.
+            # Direct endpoints return 404/500, and pmc.ncbi.nlm.nih.gov serves
+            # a reCAPTCHA bot challenge to scripted clients — an access control
+            # that should be respected, not circumvented. The legitimate bulk
+            # route is the PMC OA package service (or an institutional mirror),
+            # so this records canonical locations and leaves retrieval to a
+            # context that is entitled to it.
             fig["image_candidates"] = [
                 f"https://www.ncbi.nlm.nih.gov/pmc/articles/{pmcid}/bin/{fig['graphic']}",
                 f"https://europepmc.org/articles/{pmcid}/bin/{fig['graphic']}",
