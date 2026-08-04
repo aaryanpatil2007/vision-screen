@@ -135,6 +135,8 @@ def test_contrast_gray_matches_server(server, browser_ctx):
 def test_camera_starts_and_tracker_runs(server, browser_ctx):
     page, errors = _page(browser_ctx, server)
     page.click("#btnCamera")
+    page.wait_for_selector("text=Camera ready", timeout=60_000)
+    page.check("#brightnessOk")
     page.wait_for_selector("#btnStart:not([disabled])", timeout=60_000)
     page.wait_for_timeout(2500)
     stats = page.evaluate("() => window.__app.tracker.stats")
@@ -259,3 +261,22 @@ def test_disparity_math_matches_server(server, browser_ctx):
             [d_mm, D_mm],
         )
         assert js == pytest.approx(disparity_arcsec(d_mm, D_mm), rel=1e-9)
+
+
+def test_start_blocked_until_brightness_attested(server, browser_ctx):
+    """Acuity measured on a dim screen is systematically wrong; the run must
+    not start until the user confirms brightness."""
+    page, _ = _page(browser_ctx, server)
+    page.click("#btnCamera")
+    page.wait_for_selector("text=Camera ready", timeout=60_000)
+    assert page.is_disabled("#btnStart")
+    assert "brightness" in page.inner_text("#btnStart").lower()
+    page.check("#brightnessOk")
+    page.wait_for_selector("#btnStart:not([disabled])", timeout=10_000)
+    assert page.inner_text("#btnStart").startswith("Begin")
+
+
+def test_gray_ramp_rendered_for_dark_end_check(server, browser_ctx):
+    page, _ = _page(browser_ctx, server)
+    n = page.evaluate("() => document.querySelectorAll('#grayRamp div').length")
+    assert n == 16

@@ -12,6 +12,24 @@ DISCLAIMER = (
     "See an optometrist for a clinical evaluation."
 )
 
+# Stating the blind spot as a number beats boilerplate. In a self-declared-
+# healthy cohort with a median age of 70, a full examination found that 25%
+# needed referral and a further 9% needed monitoring — 34% with findings that
+# no screen-and-webcam test can see (PMC7798115).
+MISS_RATE_NOTE = (
+    "What this cannot see: eye pressure, the retina, and the internal structures "
+    "an examination uses to find glaucoma, diabetic retinopathy, macular "
+    "degeneration and cataract. In one study of adults who considered themselves "
+    "healthy (median age 70), about one in three had a finding at a full eye exam "
+    "that tests like this one cannot detect. A clear result here is not a "
+    "substitute for that exam."
+)
+
+NOT_A_PRESCRIPTION = (
+    "The refraction figure is a research estimate of focus, not a prescription. "
+    "It cannot be used to order glasses or contact lenses."
+)
+
 TIER_HELP = {
     "measured": "Enough good data to report a number.",
     "weak-signal": "Partial or noisy data — treat as a hint, not a result.",
@@ -82,6 +100,8 @@ _MODULE_LABELS = {
     "behavioral": "Viewing behavior",
     "astigmatism": "Astigmatism",
     "alignment": "Eye alignment",
+    "stereo": "Depth perception",
+    "viewing distance": "Viewing distance",
 }
 
 
@@ -179,7 +199,7 @@ def _visual(f: Finding) -> str:
     if f.tier == "inconclusive":
         return ""
     m = f.metrics
-    if f.module.startswith("acuity") and isinstance(m.get("logmar"), (int, float)):
+    if f.module.lower().startswith("acuity") and isinstance(m.get("logmar"), (int, float)):
         return _acuity_scale_svg(float(m["logmar"]))
     if f.module == "contrast" and isinstance(m.get("log_cs"), (int, float)):
         return _bar_svg(float(m["log_cs"]), 0.0, 2.25, 1.75, "contrast sensitivity")
@@ -208,6 +228,10 @@ def _finding_html(f: Finding) -> str:
         rows = _metric_rows(f)
         if rows:
             parts.append(f"<table class='metrics-table'>{rows}</table>")
+        # Reporting sphere/cylinder/axis is the exact output that makes a
+        # product a prescribing device; say plainly that it is not one.
+        if "sphere_d" in f.metrics:
+            parts.append(f"<p class='caveat'>{NOT_A_PRESCRIPTION}</p>")
     if f.retakes:
         items = "".join(f"<li>{_html.escape(r)}</li>" for r in f.retakes)
         parts.append(f"<p class='retake-title'>To get a result, retake:</p><ul>{items}</ul>")
@@ -261,6 +285,10 @@ def _css() -> str:
     .legend b { color: var(--text); }
     .actions { margin-top: 28px; display:flex; gap:12px; }
     .scale { color: var(--muted); margin: 10px 0 2px; display:block; }
+    .caveat { color: var(--muted); font-size: 12.5px; margin-top: 10px;
+              border-left: 2px solid var(--line); padding-left: 10px; }
+    .footnote { color: var(--muted); font-size: 12px; line-height: 1.6;
+                margin-top: 26px; border-top: 1px solid var(--line); padding-top: 16px; }
     @media print {
       body { background:#fff; color:#111; }
       .card, .finding { break-inside: avoid; }
@@ -284,9 +312,7 @@ def render_html(findings: list[Finding], session_id: str) -> str:
 </header>
 <main class="report">
   <h1>Your screening report</h1>
-  <div class="disclaimer"><strong>{DISCLAIMER}</strong>
-    This battery cannot measure eye pressure, examine the retina, or rule out
-    disease. Use it to decide whether to book an exam, never to skip one.</div>
+  <div class="disclaimer"><strong>{DISCLAIMER}</strong> {MISS_RATE_NOTE}</div>
   {_summary_banner(findings)}
   {body}
   <div class="legend">{legend}</div>
@@ -294,5 +320,11 @@ def render_html(findings: list[Finding], session_id: str) -> str:
     <button class="primary" onclick="window.print()">Save as PDF</button>
     <button class="ghost" onclick="location.href='/'">Run another screening</button>
   </div>
-  <p class="hint" style="margin-top:22px">Session {_html.escape(session_id)}</p>
+  <p class="footnote">
+    Research prototype — not FDA-cleared and not a medical device. It issues no
+    prescription and makes no diagnosis. Results describe visual function
+    measured on this screen at this moment; they are not a substitute for a
+    comprehensive eye examination by a licensed eye care professional.
+    <br><br>Session {_html.escape(session_id)}
+  </p>
 </main></div></body></html>"""

@@ -40,7 +40,7 @@ def test_only_attempted_tests_are_reported(face_video):
     """A test that was not part of the session must not appear in the report."""
     meta = make_meta([SegmentMeta("acuity_both", 0.0, 2.0, acuity_events())])
     m = modules(analyze_session(face_video, meta))
-    assert "acuity (both eyes)" in m
+    assert "Acuity (both eyes)" in m
     assert "behavioral" in m           # always available from the video itself
     assert not any(k.startswith("photorefraction") for k in m)
     assert "amsler" not in m
@@ -53,9 +53,9 @@ def test_monocular_acuity_reported_separately(face_video):
         SegmentMeta("acuity_left", 1.6, 2.3, acuity_events(16, 0.5)),
     ])
     m = modules(analyze_session(face_video, meta))
-    assert m["acuity (both eyes)"].metrics["logmar"] == 0.1
-    assert m["acuity (right eye)"].metrics["logmar"] == 0.3
-    assert m["acuity (left eye)"].metrics["logmar"] == 0.5
+    assert m["Acuity (both eyes)"].metrics["logmar"] == 0.1
+    assert m["Acuity (right eye)"].metrics["logmar"] == 0.3
+    assert m["Acuity (left eye)"].metrics["logmar"] == 0.5
 
 
 def test_contrast_segment_scored(face_video):

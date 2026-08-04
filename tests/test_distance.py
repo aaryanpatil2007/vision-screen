@@ -57,3 +57,35 @@ def test_wrong_distance_flagged_against_nominal():
 def test_too_few_samples_inconclusive():
     f = score_distance_stability([500.0] * 3, nominal_mm=500.0)
     assert f.tier == "inconclusive"
+
+
+def test_iris_ranging_is_yaw_robust_vs_interocular():
+    """A head yaw foreshortens the interocular segment but not the iris
+    circle's major axis — the reason iris is the preferred ranging signal."""
+    from visionscreen.perception.distance import (
+        DEFAULT_IRIS_MM,
+        distance_from_interocular,
+        distance_from_iris,
+        estimate_focal_px,
+        estimate_focal_px_from_iris,
+    )
+
+    true_mm = 500.0
+    iod_px, iris_px = 200.0, 40.0
+    f_iod = estimate_focal_px(iod_px, true_mm)
+    f_iris = estimate_focal_px_from_iris(iris_px, true_mm)
+
+    yaw_deg = 20.0
+    cos_yaw = np.cos(np.radians(yaw_deg))
+    # under yaw: IOD shrinks by cos(yaw); the iris major axis does not
+    d_iod = distance_from_interocular(iod_px * cos_yaw, f_iod)
+    d_iris = distance_from_iris(iris_px, f_iris)
+
+    assert abs(d_iris - true_mm) < 1e-6
+    assert abs(d_iod - true_mm) > 30.0            # ~6% error at 20 degrees
+    assert abs(d_iris - true_mm) < abs(d_iod - true_mm)
+
+
+def test_iris_constant_matches_literature():
+    from visionscreen.perception.distance import DEFAULT_IRIS_MM
+    assert DEFAULT_IRIS_MM == pytest.approx(11.71, abs=0.01)

@@ -18,8 +18,16 @@ import statistics
 
 from visionscreen.report import Finding
 
-# Adult interpupillary distance, population mean (~63 mm; SD ~3.5 mm).
+# Adult interpupillary distance, population mean ~63.4 mm, SD ~3.5 mm
+# (ANSUR, n=3976) -> coefficient of variation ~5.5%.
 DEFAULT_INTEROCULAR_MM = 63.0
+
+# Horizontal visible iris diameter, 11.71 +/- 0.42 mm (Rufer 2005, n=743 eyes)
+# -> CV 3.6%. Preferred over interocular distance for two reasons: lower
+# population variance, and geometric robustness — a head yaw of theta
+# foreshortens the interocular segment by cos(theta) (20 deg -> 6% distance
+# error) while the iris is a circle whose projected MAJOR axis is unchanged.
+DEFAULT_IRIS_MM = 11.71
 DRIFT_FLAG_RATIO = 0.12      # peak-to-peak / median
 MISMATCH_FLAG_RATIO = 0.10   # vs the distance the user entered
 MIN_SAMPLES = 10
@@ -44,6 +52,19 @@ def distance_from_interocular(
     if interocular_px <= 0 or focal_px <= 0:
         return None
     return float(focal_px * interocular_mm / interocular_px)
+
+
+def estimate_focal_px_from_iris(
+    iris_diameter_px: float, distance_mm: float, iris_mm: float = DEFAULT_IRIS_MM
+) -> float | None:
+    return estimate_focal_px(iris_diameter_px, distance_mm, iris_mm)
+
+
+def distance_from_iris(
+    iris_diameter_px: float, focal_px: float, iris_mm: float = DEFAULT_IRIS_MM
+) -> float | None:
+    """Preferred ranging signal: yaw-invariant and lower-variance than IOD."""
+    return distance_from_interocular(iris_diameter_px, focal_px, iris_mm)
 
 
 def acuity_bias_logmar(actual_mm: float, assumed_mm: float) -> float:

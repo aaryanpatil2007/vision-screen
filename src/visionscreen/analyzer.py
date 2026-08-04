@@ -33,8 +33,8 @@ from visionscreen.modules.pupillometry import PupilTrace, score_pupillometry
 from visionscreen.modules.stereo import score_stereo
 from visionscreen.perception.distance import (
     acuity_bias_logmar,
-    distance_from_interocular,
-    estimate_focal_px,
+    distance_from_iris,
+    estimate_focal_px_from_iris,
     score_distance_stability,
 )
 from visionscreen.perception.eyes import eye_aspect_ratio, head_roll_deg, interocular_px
@@ -62,6 +62,7 @@ class FrameSignals:
     ts: float
     ear: float
     interocular: float
+    iris_px: float
     roll: float
     gaze: dict[str, float] = field(default_factory=dict)
     decentration: dict[str, tuple[float, float]] = field(default_factory=dict)
@@ -214,6 +215,10 @@ def analyze_session(video_path: Path, meta: SessionMeta,
                     ts=ts,
                     ear=(eye_aspect_ratio(lm, "left") + eye_aspect_ratio(lm, "right")) / 2,
                     interocular=interocular_px(lm, w, h),
+                    # max of the two irides: the eye turned toward the camera is
+                    # the least foreshortened, so this is the yaw-robust estimate
+                    iris_px=max(iris_diameter_px(lm, "left", w, h),
+                                iris_diameter_px(lm, "right", w, h)),
                     roll=head_roll_deg(lm),
                 )
                 for side in ("left", "right"):
@@ -244,12 +249,12 @@ def analyze_session(video_path: Path, meta: SessionMeta,
     nominal_mm = meta.distance_cm * 10.0
     distances_mm: list[float] = []
     if frames:
-        warmup = [f.interocular for f in frames[: max(5, len(frames) // 10)]]
-        focal = estimate_focal_px(float(np.median(warmup)), nominal_mm)
+        warmup = [f.iris_px for f in frames[: max(5, len(frames) // 10)] if f.iris_px > 0]
+        focal = estimate_focal_px_from_iris(float(np.median(warmup)), nominal_mm) if warmup else None
         if focal:
             distances_mm = [
                 d for f in frames
-                if (d := distance_from_interocular(f.interocular, focal)) is not None
+                if (d := distance_from_iris(f.iris_px, focal)) is not None
             ]
     if len(distances_mm) >= 10:
         findings.append(score_distance_stability(distances_mm, nominal_mm))
@@ -268,7 +273,7 @@ def analyze_session(video_path: Path, meta: SessionMeta,
         trials = [ev.payload for ev in s.events if ev.kind == "trial"]
         f = score_trials(trials)
         if test_id != "acuity":
-            f.module = f"acuity ({label})"
+            f.module = f"Acuity ({label})"
 
         # Correct for where the user actually sat during THIS test. Optotypes
         # were sized for the stated distance; testing nearer or farther shifts
@@ -289,7 +294,7 @@ def analyze_session(video_path: Path, meta: SessionMeta,
                     f"{actual/10:.0f} cm)."
                 )
         findings.append(f)
-    if not any(f.module.startswith("acuity") for f in findings):
+    if not any(f.module.lower().startswith("acuity") for f in findings):
         findings.append(Finding(
             module="acuity", summary="Acuity test was not performed.",
             tier="inconclusive", retakes=["Run the letter test."]))

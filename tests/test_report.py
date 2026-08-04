@@ -52,7 +52,7 @@ def test_banner_escalates_urgent_findings():
 
 
 def test_snellen_row_added_for_acuity():
-    fs = [Finding("acuity (both eyes)", "x", "measured", {"logmar": 0.3, "trials": 20})]
+    fs = [Finding("Acuity (both eyes)", "x", "measured", {"logmar": 0.3, "trials": 20})]
     html = render_html(fs, "s")
     assert "20/40" in html
 
@@ -66,7 +66,7 @@ def test_inconclusive_still_hides_metrics():
 
 
 def test_acuity_finding_includes_scale_visual():
-    fs = [Finding("acuity (both eyes)", "x", "measured", {"logmar": 0.3, "trials": 20})]
+    fs = [Finding("Acuity (both eyes)", "x", "measured", {"logmar": 0.3, "trials": 20})]
     html = render_html(fs, "s")
     assert "<svg" in html and "20/20" in html
 
@@ -78,7 +78,7 @@ def test_contrast_finding_includes_bar():
 
 
 def test_inconclusive_has_no_visual():
-    fs = [Finding("acuity (left eye)", "x", "inconclusive", {"logmar": 0.3},
+    fs = [Finding("Acuity (left eye)", "x", "inconclusive", {"logmar": 0.3},
                   ["retake"])]
     html = render_html(fs, "s")
     assert "<svg" not in html
@@ -88,7 +88,7 @@ def test_module_names_are_human_readable():
     from visionscreen.report import module_label
     assert module_label("color_vision") == "Color vision"
     assert module_label("photorefraction") == "Refraction estimate"
-    assert module_label("acuity (both eyes)") == "acuity (both eyes)"
+    assert module_label("Acuity (both eyes)") == "Acuity (both eyes)"
     html = render_html([Finding("color_vision", "x", "weak-signal", {"flags": []})], "s")
     assert "color_vision" not in html
 
@@ -99,3 +99,30 @@ def test_metric_keys_never_shown_raw():
     html = render_html(fs, "s")
     assert "median_cm" not in html and "acuity_bias_logmar" not in html
     assert "Measured distance (cm)" in html
+
+
+def test_report_states_miss_rate_numerically():
+    """Boilerplate is not honesty — the report must quantify its blind spot."""
+    html = render_html([Finding("Acuity (both eyes)", "x", "measured",
+                                {"logmar": 0.0})], "s")
+    assert "one in three" in html
+    assert "glaucoma" in html and "retina" in html
+
+
+def test_refraction_is_labeled_not_a_prescription():
+    fs = [Finding("photorefraction", "estimate", "weak-signal",
+                  {"sphere_d": -2.25, "cylinder_d": 0.5})]
+    html = render_html(fs, "s")
+    assert "not a prescription" in html
+    assert "order glasses" in html
+
+
+def test_report_carries_research_prototype_footer():
+    html = render_html([], "s")
+    assert "not FDA-cleared" in html
+    assert "makes no diagnosis" in html
+
+
+def test_no_prescription_note_when_no_refraction():
+    html = render_html([Finding("contrast", "x", "measured", {"log_cs": 1.8})], "s")
+    assert "not a prescription" not in html

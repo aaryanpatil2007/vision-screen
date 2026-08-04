@@ -602,8 +602,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     try {
       await app.initCamera();
       $("#camStatus").textContent = "Camera ready — check that both eyes are outlined below.";
-      $("#btnStart").disabled = false;
       $("#btnCamera").hidden = true;
+      if (app.onCameraReady) app.onCameraReady();
     } catch (e) {
       $("#camStatus").textContent = "Camera failed: " + e.message;
       $("#btnCamera").disabled = false;
@@ -628,5 +628,26 @@ window.addEventListener("DOMContentLoaded", async () => {
     $("#distanceVal").textContent = e.target.value;
   });
 
-  $("#btnStart").addEventListener("click", () => app.runAll());
+  // Grey ramp: a subjective check that the dark end of the display is not
+  // crushed. Standards want 80-320 cd/m2 and the browser cannot measure it.
+  const ramp = $("#grayRamp");
+  for (let i = 0; i < 16; i++) {
+    const v = Math.round((i / 15) * 90);
+    const seg = document.createElement("div");
+    seg.style.cssText = `flex:1;background:rgb(${v},${v},${v})`;
+    ramp.appendChild(seg);
+  }
+
+  const brightness = $("#brightnessOk");
+  const startBtn = $("#btnStart");
+  const refreshStart = () => {
+    startBtn.disabled = !(app.tracker && brightness.checked);
+    startBtn.textContent = brightness.checked
+      ? "Begin screening"
+      : "Confirm screen brightness above";
+  };
+  brightness.addEventListener("change", refreshStart);
+  app.onCameraReady = refreshStart;
+
+  startBtn.addEventListener("click", () => app.runAll());
 });
