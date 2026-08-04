@@ -102,6 +102,18 @@ than 0.3 logMAR) flips between repeat sessions on 4.7% of subjects — down from
 | Astigmatism axis | 4.1° mean error |
 | Photorefraction | 0.027 D mean spherical-equivalent error |
 
+**Real-image accuracy** — controlled stimuli injected at known values onto
+real eye crops, giving real appearance with exact ground truth. Every module
+tested this way degraded from its synthetic figure, consistently by around an
+order of magnitude:
+
+| module | synthetic | **real images** |
+|---|---|---|
+| alignment, single frame | 0.60 PD | **5.35 PD** |
+| alignment, 40-frame median | — | **1.09 PD** |
+| photorefraction | 0.027 D | **0.187 D** |
+| segmentation (mIoU) | 0.928 | **0.722** |
+
 **Alignment accuracy on real eye images** — a controlled glint injected at a
 known decentration onto real eye crops gives real appearance with exact ground
 truth:
