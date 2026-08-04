@@ -93,9 +93,11 @@ def measure_reflex(
         return None
 
     S_abs, C, axis = fit_srx(profile)
-    # myopic defocus (S < 0) puts the crescent on the flash side (+x)
-    sign = -1.0 if u > 0 else 1.0
-    return sign * S_abs, C, axis
+    # myopic defocus (S < 0) puts the crescent on the flash side (+x).
+    # For myopic eyes |A|(θ) = (−S−C) + C·sin²(θ − axis − 90°): undo the remap.
+    if u > 0:
+        return -(S_abs + C), C, (axis - 90.0) % 180.0
+    return S_abs, C, axis
 
 
 def score_photoref(
