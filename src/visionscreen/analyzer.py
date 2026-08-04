@@ -96,25 +96,34 @@ def _eye_measurements(frame, landmarks, side, segmenter: EyeSegmenter | None):
     gray = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2GRAY)
 
     seg = segmenter.segment(gray) if (segmenter and segmenter.available) else None
+
+    pupil_mm = None
+    reflex_local = None
+    ref_center = center_px
     if seg is not None:
+        # The net is the only source of a pupil boundary; the classical path
+        # has no equivalent.
         pupil_mm = (2 * seg.pupil_radius_px / px_per_mm) if seg.pupil_radius_px else None
-        if seg.reflex_center is not None:
-            reflex_px = (seg.reflex_center[0] + ox, seg.reflex_center[1] + oy)
-            ref_center = center_px
-            if seg.iris_center is not None:
-                ref_center = (seg.iris_center[0] + ox, seg.iris_center[1] + oy)
-            return reflex_decentration_mm(reflex_px, ref_center, iris_d), pupil_mm
+        if seg.iris_center is not None:
+            ref_center = (seg.iris_center[0] + ox, seg.iris_center[1] + oy)
+        reflex_local = seg.reflex_center
+
+    # Reflex: prefer the net, but fall back to threshold detection when it
+    # finds none. Measured on reflex-bearing real crops, classical recall is
+    # ~99% against ~77% for the net (the specular highlight is a strong,
+    # simple photometric signal), so trusting the net alone silently discards
+    # about a fifth of the alignment data.
+    if reflex_local is None:
+        reflex_local = detect_corneal_reflex(
+            gray,
+            center_xy=(ref_center[0] - ox, ref_center[1] - oy),
+            radius_px=iris_d / 2,
+        )
+    if reflex_local is None:
         return None, pupil_mm
 
-    reflex = detect_corneal_reflex(
-        gray,
-        center_xy=(center_px[0] - ox, center_px[1] - oy),
-        radius_px=iris_d / 2,
-    )
-    if reflex is None:
-        return None, None
-    reflex_px = (reflex[0] + ox, reflex[1] + oy)
-    return reflex_decentration_mm(reflex_px, center_px, iris_d), None
+    reflex_px = (reflex_local[0] + ox, reflex_local[1] + oy)
+    return reflex_decentration_mm(reflex_px, ref_center, iris_d), pupil_mm
 
 
 def _photoref_frame(frame, landmarks, e_m, d_m):

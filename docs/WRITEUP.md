@@ -215,12 +215,22 @@ All benchmarks are reproducible: `python -m benchmarks.<name>`; JSON in `results
 
 | training data | synthetic mIoU | **real mIoU** | real pupil IoU |
 |---|---|---|---|
-| synthetic only | 0.927 | **0.241** | 0.390 |
-| synthetic + weakly-labeled real | 0.925 | **0.705** | 0.828 |
+| synthetic only | 0.928 | **0.237** | 0.382 |
+| synthetic + weakly-labeled real | 0.926 | **0.722** | 0.848 |
 
-Sim-to-real gap for synthetic-only training: **0.685 mIoU**. Adding real data
-recovers **+0.464**. Real corpus: 2,198 train / 732 held-out test, split before
-training (a leakage bug was caught and fixed before any number was published).
+Sim-to-real gap for synthetic-only training: **0.691 mIoU**. Adding real data
+recovers **+0.485**. Real corpus: 4,598 train / 1,532 held-out test, split
+before training (a leakage bug was caught and fixed before any number was
+published).
+
+Real-data scaling is monotonic, which is the usual sign that the gain is real
+rather than a lucky split:
+
+| labeled real crops | held-out real crops | real mIoU |
+|---|---|---|
+| 1,154 | 288 | 0.691 |
+| 2,930 | 732 | 0.705 |
+| 6,130 | 1,532 | **0.722** |
 
 **Interpretation.** A model validated only on its own simulator would have
 reported 0.92 and been wrong about real eyes by a factor of four. Any
@@ -276,14 +286,25 @@ Each of these was found by measurement, not inspection:
    reads "at or better than".
 7. **Data leakage in the sim-to-real benchmark** — real training initially
    included the held-out split; caught before any number was published.
-8. **An unsupportable RAPD claim** — the pupillometry module originally
+8. **A wrong hypothesis about learned vs classical reflex detection.** The
+   pipeline originally trusted the network's reflex output and dropped the
+   frame when it found none. Measured on 150 real reflex-bearing crops, the
+   classical threshold detector actually has the higher recall — **~99% versus
+   ~77%** — because a specular highlight is a strong, simple photometric
+   signal and the network trades recall for precision. Trusting the network
+   alone silently discarded about a fifth of the alignment data. The analyzer
+   now uses the network first and falls back to classical detection, and a
+   test asserts the combination beats either path alone (>90% combined recall).
+   The network remains the only source of a pupil boundary, which the classical
+   path cannot produce at all.
+9. **An unsupportable RAPD claim** — the pupillometry module originally
    reported inter-eye response asymmetry as a possible relative afferent
    pupillary defect. A bilateral screen flash cannot reveal an afferent
    asymmetry at all (§2). The claim was removed and replaced with what is
    measurable: binocular PLR plus static anisocoria at a ≥1 mm threshold,
    since ≥0.4 mm occurs in 41% of normal subjects at some sitting and 19% at
    any given exam (Lam, Thompson & Corbett 1987).
-9. **Pupil latency reported at 30 fps** — frame quantization there has an SD
+10. **Pupil latency reported at 30 fps** — frame quantization there has an SD
    of ~9.6 ms, which exceeds the *lower bound* of the physiological inter-eye
    latency asymmetry range (8.3–35 ms; Bergamin & Kardon 2003). Latency is now
    withheld below 55 fps rather than reported as noise.

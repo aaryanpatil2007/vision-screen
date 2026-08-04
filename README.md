@@ -59,8 +59,8 @@ report. Everything runs locally; the video never leaves the machine.
 
 | training data | synthetic mIoU | **real mIoU** | real pupil IoU |
 |---|---|---|---|
-| synthetic only | 0.919 | **0.241** | 0.367 |
-| synthetic + weakly-labeled real | 0.919 | **0.691** | 0.830 |
+| synthetic only | 0.928 | **0.237** | 0.382 |
+| synthetic + weakly-labeled real | 0.926 | **0.722** | 0.848 |
 
 **Battery accuracy** (120 simulated patients with realistic lapse rates):
 
