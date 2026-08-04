@@ -22,8 +22,20 @@ from visionscreen.ml.model import IRIS_CLASS, PUPIL_CLASS, REFLEX_CLASS
 
 OCULAR_CLASS = 1
 MIN_CROP_PX = 20
-MIN_PUPIL_FRACTION = 0.02   # of iris disk area
-MAX_PUPIL_FRACTION = 0.75
+# Physiological bounds, expressed as pupil AREA over iris-disk area. A pupil
+# is 2-8 mm across an ~11.7 mm iris, i.e. a diameter ratio of 0.17-0.68 and
+# therefore an area ratio of 0.029-0.46. The previous 0.75 area bound allowed a
+# 0.87 diameter ratio — near-total dilation — and measurement showed the labels
+# sitting at 0.81 diameter ratio (0.66 area): Otsu's dark mode inside the iris
+# disk absorbs dark iris pigment along with the pupil.
+MIN_PUPIL_FRACTION = 0.029
+MAX_PUPIL_FRACTION = 0.46
+# Typical dim-adapted pupil is ~0.45 of iris diameter, i.e. 0.20 of its area.
+# Selecting the first threshold merely *under* the ceiling clamps every label
+# to the boundary (measured: 0.645 +- 0.014 diameter ratio, an artefact of the
+# bound rather than a measurement), so choose the candidate whose area lands
+# nearest this target instead.
+TARGET_PUPIL_AREA_FRACTION = 0.20
 REFLEX_PERCENTILE = 99.0
 MIN_PUPIL_IRIS_CONTRAST = 12.0   # pupil must be darker than the iris annulus
 MAX_SATURATED_FRACTION = 0.35    # blown-out crop (glasses glare) -> unusable
@@ -60,19 +72,39 @@ def weak_label_eye_crop(
     if float((disk_vals >= 250).mean()) > MAX_SATURATED_FRACTION:
         return None
 
-    # --- pupil: Otsu restricted to the iris disk, keep the dark side ---
+    # --- pupil: the darkest core of physiological size within the iris disk ---
+    # Otsu alone finds the dark *mode*, which in a pigmented iris is pupil plus
+    # surrounding stroma. Instead, walk the threshold down from Otsu until the
+    # largest dark component falls inside the physiological area band; that is
+    # the intensity level at which the core is pupil-sized rather than
+    # pupil-plus-iris.
+    disk_area = int(iris_disk.sum())
     vals = disk_vals.astype(np.uint8)
-    thr, _ = cv2.threshold(vals, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    dark = iris_disk & (crop_gray <= thr)
-    n, labels, stats, cents = cv2.connectedComponentsWithStats(dark.astype(np.uint8))
-    if n < 2:
+    otsu, _ = cv2.threshold(vals, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    pupil = None
+    idx = -1
+    labels = stats = cents = None
+    best_gap = float("inf")
+    candidates = [otsu] + [
+        float(np.percentile(disk_vals, q))
+        for q in (45, 40, 35, 30, 26, 22, 18, 15, 12, 9, 7, 5, 3)
+    ]
+    for thr in candidates:
+        dark = iris_disk & (crop_gray <= thr)
+        n, lab, st, ct = cv2.connectedComponentsWithStats(dark.astype(np.uint8))
+        if n < 2:
+            continue
+        i = 1 + int(np.argmax(st[1:, cv2.CC_STAT_AREA]))
+        frac = st[i, cv2.CC_STAT_AREA] / disk_area
+        if not (MIN_PUPIL_FRACTION <= frac <= MAX_PUPIL_FRACTION):
+            continue
+        gap = abs(frac - TARGET_PUPIL_AREA_FRACTION)
+        if gap < best_gap:
+            best_gap = gap
+            pupil, idx, labels, stats, cents = lab == i, i, lab, st, ct
+    if pupil is None:
         return None
-    idx = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
-    area = stats[idx, cv2.CC_STAT_AREA]
-    frac = area / iris_disk.sum()
-    if not (MIN_PUPIL_FRACTION <= frac <= MAX_PUPIL_FRACTION):
-        return None
-    pupil = labels == idx
 
     # the pupil is concentric with the iris; a far-off blob is an eyelash/shadow
     py, px = cents[idx][1], cents[idx][0]

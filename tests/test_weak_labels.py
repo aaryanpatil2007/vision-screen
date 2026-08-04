@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from visionscreen.ml.model import IRIS_CLASS, PUPIL_CLASS, REFLEX_CLASS
 from visionscreen.data.weak_labels import weak_label_eye_crop
@@ -65,3 +66,35 @@ def test_rejects_blown_out_crop():
 def test_still_accepts_valid_dark_pupil():
     crop = _synthetic_crop()
     assert weak_label_eye_crop(crop, iris_center=(45, 30), iris_radius=22) is not None
+
+
+def _ratio(mask):
+    import numpy as np
+    npx = (mask == PUPIL_CLASS).sum()
+    nir = ((mask == IRIS_CLASS) | (mask == PUPIL_CLASS) | (mask == REFLEX_CLASS)).sum()
+    return float(np.sqrt(npx / nir)) if nir else 0.0
+
+
+def test_pupil_label_is_physiologically_sized():
+    """Otsu's dark mode inside a pigmented iris absorbs stroma along with the
+    pupil: measured labels sat at 0.81 of iris diameter, where a dim-adapted
+    pupil is 0.35-0.55. The threshold search now targets a physiological area."""
+    crop = np.full((80, 110), 200, np.uint8)
+    yy, xx = np.mgrid[0:80, 0:110]
+    r = np.hypot(xx - 55, yy - 40)
+    crop[r <= 30] = 95      # iris
+    crop[r <= 22] = 70      # dark iris stroma — must NOT be labelled pupil
+    crop[r <= 13] = 20      # true pupil: 13/30 = 0.43 of iris radius
+    mask = weak_label_eye_crop(crop, iris_center=(55, 40), iris_radius=30)
+    assert mask is not None
+    assert 0.30 <= _ratio(mask) <= 0.60, _ratio(mask)
+
+
+def test_bounds_bracket_real_pupil_physiology():
+    from visionscreen.data.weak_labels import (
+        MAX_PUPIL_FRACTION, MIN_PUPIL_FRACTION, TARGET_PUPIL_AREA_FRACTION,
+    )
+    # a 2-8 mm pupil on an 11.7 mm iris is 0.17-0.68 of diameter
+    assert MIN_PUPIL_FRACTION == pytest.approx((0.17) ** 2, abs=0.005)
+    assert MAX_PUPIL_FRACTION == pytest.approx((0.68) ** 2, abs=0.005)
+    assert MIN_PUPIL_FRACTION < TARGET_PUPIL_AREA_FRACTION < MAX_PUPIL_FRACTION
