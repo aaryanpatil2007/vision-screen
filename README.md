@@ -74,6 +74,22 @@ report. Everything runs locally; the video never leaves the machine.
 | Astigmatism axis | 4.1° mean error |
 | Photorefraction | 0.027 D mean spherical-equivalent error |
 
+**Alignment accuracy on real eye images** — a controlled glint injected at a
+known decentration onto real eye crops gives real appearance with exact ground
+truth:
+
+| condition | mean abs error |
+|---|---|
+| synthetic images | 0.60 PD |
+| single real frame | **5.35 PD** |
+| median of 40 real frames | **1.09 PD** |
+
+Per-frame error is independent noise, so aggregation removes it — which is why
+the capture is video, not a photo. For scale, interexaminer agreement on the
+prism cover test is about ±5 PD, so 1.1 PD sits inside the clinical reference's
+own noise. The frame requirement is set from this measurement, and every
+reported deviation carries its own expected error.
+
 **Real-patient check** — the production alignment path run over photographs of
 clinically categorised strabismus patients plus presumed-normal faces:
 
