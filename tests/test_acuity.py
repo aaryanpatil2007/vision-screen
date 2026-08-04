@@ -2,7 +2,9 @@ import math
 
 import pytest
 
-from visionscreen.modules.acuity import Staircase, letter_height_px, score_trials
+from visionscreen.modules.acuity import (
+    MAX_TRIALS, Staircase, letter_height_px, score_trials,
+)
 
 
 def test_letter_height_physics():
@@ -25,9 +27,10 @@ def test_staircase_converges_to_true_threshold():
     assert s.threshold() == pytest.approx(0.4, abs=0.15)
 
 
-def test_staircase_terminates_within_30_trials():
+def test_staircase_always_terminates_at_the_cap():
+    """Whatever the responses, the run must end at the trial cap."""
     s = Staircase()
-    for _ in range(30):
+    for _ in range(MAX_TRIALS):
         if s.done:
             break
         s.record(False)
@@ -123,3 +126,27 @@ def test_reversal_scoring_survives_non_grid_levels():
         level += (-0.1 if correct else 0.1 * 5 / 3)
     f = score_trials(trials)
     assert f.metrics["logmar"] == pytest.approx(0.4, abs=0.12)
+
+
+def test_trial_budget_set_for_repeatability():
+    """The budget is chosen from a measured repeatability sweep, not taste:
+    30 trials gave CoR 0.212 logMAR, 60 gives 0.137 — inside the 0.15
+    clinical bar and near the ETDRS chart's own 0.11."""
+    from visionscreen.modules.acuity import MAX_REVERSALS, MAX_TRIALS, MIN_TRIALS
+    assert MAX_TRIALS >= 50
+    assert MAX_REVERSALS >= 12
+    assert MIN_TRIALS >= 20
+    assert MIN_TRIALS < MAX_TRIALS
+
+
+def test_staircase_uses_the_full_budget_when_needed():
+    """A noisy observer must be allowed to run to the trial cap."""
+    s = Staircase()
+    n = 0
+    import random
+    rng = random.Random(0)
+    while not s.done and n < 200:
+        s.record(rng.random() < 0.6)
+        n += 1
+    assert n >= 20, "terminated before the minimum trial count"
+    assert n <= MAX_TRIALS

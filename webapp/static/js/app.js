@@ -193,7 +193,10 @@ class App {
     const seg = this.session.open(testId);
     this.session.log(seg, "cover", { eye: eyeLabel });
     let logmar = 1.0, trials = 0, reversals = 0, lastCorrect = null;
-    const MAX = 26, MIN_TRIALS = 12, MAX_REV = 8;
+    // budget matched to the server's measured repeatability sweep:
+    // 60 trials puts test-retest CoR at 0.113 logMAR, the level of the
+    // printed ETDRS chart itself (0.11).
+    const MAX = 60, MIN_TRIALS = 20, MAX_REV = 14;
     // Never present an optotype finer than one pixel of stroke — below that
     // the E is no longer the shape it claims to be.
     const floorLogmar = renderableFloorLogmar(

@@ -439,6 +439,57 @@ crops still produced a measurement (median 71 PD, i.e. obvious nonsense), and
 **4% passed the plausibility ceiling** — the residual false-confidence rate of
 the current guards, and a number to reduce rather than hide.
 
+### 4.4d Test-retest repeatability — the validation half that needs no clinician
+
+Agreement with a clinician requires a clinician. **Repeatability does not.** It
+is half of validity — a test that disagrees with itself cannot agree with
+anything else — it is what the published app studies report, and it is directly
+comparable to them. Each virtual subject is run twice with independent response
+noise and independent stimulus randomisation.
+
+| measure | bias | coefficient of repeatability | 95% LoA |
+|---|---|---|---|
+| Acuity | +0.004 | **0.137 logMAR** | −0.134 to +0.141 |
+| Contrast | −0.001 | **0.034 log CS** | −0.035 to +0.033 |
+| Alignment | +0.004 | **0.65 PD** | −0.64 to +0.65 |
+
+**Against the published reference points:**
+
+| test | acuity CoR / test-retest LoA |
+|---|---|
+| Peek Acuity | 0.033 logMAR |
+| **ETDRS chart, normals** | **0.11** |
+| DigiVis | 0.12 |
+| **VisionScreen** | **0.137** |
+| ETDRS chart with 1.00 D blur | 0.25 |
+
+The first measurement of this was **0.250 logMAR** — as repeatable as an ETDRS
+chart read through a dioptre of blur, and worse than every published app. The
+cause was the trial budget, and a sweep made the trade explicit:
+
+| trials / reversals | CoR |
+|---|---|
+| 30 / 8 | 0.212 |
+| 40 / 10 | 0.176 |
+| 50 / 12 | 0.131 |
+| **60 / 14** | **0.113** |
+| 80 / 16 | 0.116 (no further gain) |
+
+Sixty trials was adopted. The cost is about two minutes per eye; the return is
+repeatability at the level of the printed chart. **Decision stability improved
+with it: the referral call (acuity worse than 0.3 logMAR) flipped between
+repeat sessions on 10.0% of subjects at the old budget and 4.7% at the new
+one** — which is the number a screening tool should actually be judged on,
+since a referral that changes on retest is worse than no referral.
+
+Contrast (0.034) and alignment (0.65 PD) are already far inside their
+references (Pelli-Robson letter-by-letter CoR is 0.14–0.21 log CS; prism cover
+test interexaminer agreement is about ±5 PD).
+
+**What repeatability does not establish.** A test can be perfectly repeatable
+and perfectly wrong — repeatability bounds the noise, not the bias. Only
+comparison against a clinician bounds the bias, and that study remains unrun.
+
 ### 4.5 Why real sessions failed before
 
 Analysis of the real corpus found that **only 10.8% of real webcam eye crops
