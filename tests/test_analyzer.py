@@ -133,3 +133,14 @@ def test_empty_session_still_reports_behavioral(face_video):
     m = modules(analyze_session(face_video, make_meta([])))
     assert "behavioral" in m
     assert "acuity" in m and m["acuity"].tier == "inconclusive"
+
+
+def test_viewing_distance_reported(face_video):
+    """Distance is tracked objectively from interocular pixel span."""
+    meta = make_meta([SegmentMeta("acuity_both", 0.0, 2.4, acuity_events())])
+    m = modules(analyze_session(face_video, meta))
+    assert "viewing distance" in m
+    d = m["viewing distance"]
+    assert d.metrics["median_cm"] > 0
+    # a static video cannot drift, so no movement flag should be raised
+    assert "viewing distance changed during the test" not in d.metrics["flags"]

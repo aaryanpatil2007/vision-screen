@@ -30,6 +30,12 @@ from visionscreen.modules.contrast import score_contrast
 from visionscreen.modules.motility import score_motility
 from visionscreen.modules.photoref import measure_reflex, score_photoref
 from visionscreen.modules.pupillometry import PupilTrace, score_pupillometry
+from visionscreen.perception.distance import (
+    acuity_bias_logmar,
+    distance_from_interocular,
+    estimate_focal_px,
+    score_distance_stability,
+)
 from visionscreen.perception.eyes import eye_aspect_ratio, head_roll_deg, interocular_px
 from visionscreen.perception.iris import (
     detect_corneal_reflex,
@@ -228,7 +234,27 @@ def analyze_session(video_path: Path, meta: SessionMeta,
     valid_fraction = counts["gated"] / counts["total"] if counts["total"] else 0.0
     findings: list[Finding] = []
 
+    # ---- objective viewing distance ----
+    # Calibrate the pinhole focal length from the MEDIAN early-session span
+    # against the stated distance, then track distance per frame. This cannot
+    # detect a constant offset in the user's estimate (that needs a physical
+    # reference), but it does catch drift and within-session movement, which
+    # are the errors that vary across the battery.
+    nominal_mm = meta.distance_cm * 10.0
+    distances_mm: list[float] = []
+    if frames:
+        warmup = [f.interocular for f in frames[: max(5, len(frames) // 10)]]
+        focal = estimate_focal_px(float(np.median(warmup)), nominal_mm)
+        if focal:
+            distances_mm = [
+                d for f in frames
+                if (d := distance_from_interocular(f.interocular, focal)) is not None
+            ]
+    if len(distances_mm) >= 10:
+        findings.append(score_distance_stability(distances_mm, nominal_mm))
+
     # ---- acuity (binocular + each eye) ----
+    ts_to_distance = dict(zip((f.ts for f in frames), distances_mm)) if distances_mm else {}
     for test_id, label in (
         ("acuity_both", "both eyes"),
         ("acuity_right", "right eye"),
@@ -242,6 +268,25 @@ def analyze_session(video_path: Path, meta: SessionMeta,
         f = score_trials(trials)
         if test_id != "acuity":
             f.module = f"acuity ({label})"
+
+        # Correct for where the user actually sat during THIS test. Optotypes
+        # were sized for the stated distance; testing nearer or farther shifts
+        # the threshold by log10(assumed/actual).
+        seg_d = [d for t, d in ts_to_distance.items() if _in(s, t)]
+        if seg_d and f.metrics.get("logmar") is not None:
+            actual = float(np.median(seg_d))
+            bias = acuity_bias_logmar(actual, nominal_mm)
+            if abs(bias) >= 0.05:
+                raw = f.metrics["logmar"]
+                f.metrics["logmar_uncorrected"] = raw
+                f.metrics["logmar"] = round(raw + bias, 2)
+                f.metrics["distance_correction_logmar"] = round(bias, 3)
+                f.metrics["measured_distance_cm"] = round(actual / 10, 1)
+                f.summary = (
+                    f"Estimated acuity {f.metrics['logmar']:.2f} logMAR "
+                    f"(corrected for a measured viewing distance of "
+                    f"{actual/10:.0f} cm)."
+                )
         findings.append(f)
     if not any(f.module.startswith("acuity") for f in findings):
         findings.append(Finding(
