@@ -5,8 +5,11 @@ analysed with clinical physics and a purpose-trained segmentation network.
 
 > **Screening tool, not a diagnosis.** It cannot measure eye pressure, examine
 > the retina, or rule out disease, and it has not been validated against
-> clinical measurement in human subjects. Use it to decide whether to book an
-> eye exam — never to skip one.
+> clinical measurement in human subjects. In one study of adults who considered
+> themselves healthy (median age 70), about **one in three** had a finding at a
+> full eye exam that a test like this cannot detect. Use it to decide whether to
+> book an eye exam — never to skip one. Research prototype: not FDA-cleared,
+> issues no prescription, makes no diagnosis.
 
 ---
 
@@ -15,15 +18,20 @@ analysed with clinical physics and a purpose-trained segmentation network.
 | Test | Output |
 |---|---|
 | Visual acuity — binocular, right eye, left eye | logMAR + Snellen, corrected for measured viewing distance |
-| Contrast sensitivity | log CS (Pelli-Robson triplets) |
+| Contrast sensitivity | log CS (Pelli-Robson triplets, 2-of-3 rule) |
 | Astigmatism | minus-cylinder axis from the clock dial |
 | Color vision | red-green screen, protan/deutan lean |
 | Central field | metamorphopsia / scotoma marks (Amsler grid) |
+| Depth perception | stereo threshold in arcsec (dynamic random-dot, catch trials) |
+| Binocular fusion | fusion / suppression / diplopia (Worth four-dot) |
 | Eye movement | smooth-pursuit gain, catch-up saccades |
 | Eye alignment | deviation in prism diopters (Hirschberg) |
-| Pupil response | constriction %, latency, inter-eye asymmetry (RAPD) |
-| Refraction | sphere / cylinder / axis (eccentric photorefraction) |
+| Pupil response | constriction %, anisocoria |
+| Refraction | sphere / cylinder / axis estimate (eccentric photorefraction) |
+| Viewing distance | measured per frame from iris diameter; corrects acuity |
 | Viewing behaviour | squinting, lean-in, head tilt |
+
+Two tests need red-cyan 3-D glasses. Everything else runs on a bare webcam.
 
 Every finding carries a confidence tier — **measured**, **weak-signal**, or
 **inconclusive** — and the system reports *inconclusive with instructions*
@@ -58,13 +66,13 @@ report. Everything runs locally; the video never leaves the machine.
 
 | test | result |
 |---|---|
-| Visual acuity | 0.077 logMAR mean error; 89% within chart test-retest repeatability |
-| Contrast sensitivity | 0.168 log CS mean error |
+| Visual acuity | 0.065 logMAR mean error; 93% within chart test-retest repeatability |
+| Contrast sensitivity | 0.137 log CS mean error |
 | Strabismus (≥10 PD) | sensitivity 1.00 / specificity 1.00 |
-| RAPD | sensitivity 1.00 / specificity 1.00 |
-| Color deficiency | sensitivity 1.00 / specificity 0.97 |
-| Astigmatism axis | 4.8° mean error |
-| Photorefraction | 0.029 D mean spherical-equivalent error |
+| Anisocoria (≥1 mm) | sensitivity 1.00 / specificity 1.00 |
+| Color deficiency | sensitivity 1.00 / specificity 0.96 |
+| Astigmatism axis | 5.1° mean error |
+| Photorefraction | 0.028 D mean spherical-equivalent error |
 
 Full methods, limitations, and citations: [`docs/WRITEUP.md`](docs/WRITEUP.md).
 
