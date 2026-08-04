@@ -583,6 +583,40 @@ imitate a bright meridional profile. The module now rejects a set of estimates
 whose spread exceeds 1.25 D rather than averaging artifacts into a confident
 number — the same guard, for the same reason, as alignment.
 
+### 4.4g A weak-label defect the photorefraction work exposed
+
+Chasing the scale error above led somewhere unplanned. Pupil radius enters the
+crescent inversion as `w = 2r - e/(d|A|)`, so an error in *r* propagates
+proportionally into the diopter estimate — precisely the signature measured
+(0.073 D at 2 D, 0.30 D at 4 D). The analyzer was using a population constant
+(0.35 of iris diameter) where the segmenter could supply a measurement, so the
+obvious fix was to use the measurement.
+
+Checking what that measurement actually says produced a more useful finding:
+across 250 real crops the **labeled pupil/iris ratio is 0.804 ± 0.036**. That
+is not physiological — a dim-adapted pupil is roughly 0.35-0.55 of the iris,
+and 0.80 would be near-maximal dilation filling the iris. **The weak labels
+systematically over-segment the pupil**, because the photometric rule takes
+Otsu's dark mode inside the iris disk and dark iris pigment joins the pupil in
+that mode.
+
+Consequences, recorded rather than papered over:
+
+* The analyzer accepts a segmenter radius only inside a physiological band
+  (0.17-0.68 of iris, i.e. a 2-8 mm pupil), so these labels are rejected and
+  the constant is used. The change is safe but does not yet deliver its benefit.
+* The trained network inherits the same bias in its pupil class, which means
+  the 0.848 real pupil IoU is agreement with an over-segmented reference, not
+  with a true pupil boundary. The segmentation numbers should be read as
+  *consistency with the weak-label rule*, which §5 already states, but this
+  puts a number on how far that rule sits from anatomy.
+* The fix is a tighter pupil criterion in weak labeling — an intensity floor
+  relative to the iris annulus rather than a pure Otsu split — followed by a
+  retrain. Not done here.
+
+This is the kind of defect that only surfaces when a downstream module cares
+about a quantity the label was never checked against.
+
 ### 4.5 Why real sessions failed before
 
 Analysis of the real corpus found that **only 10.8% of real webcam eye crops

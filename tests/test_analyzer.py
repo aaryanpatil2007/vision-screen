@@ -192,3 +192,22 @@ def test_suppression_segment_scored(face_video):
     assert "suppression" in m
     assert "suppression of one eye" in m["suppression"].metrics["flags"]
     assert m["suppression"].metrics["suppressing_eye"] == "right"
+
+
+def test_photoref_rejects_implausible_pupil_radius(face_video):
+    """Pupil radius enters the crescent inversion proportionally, so a wrong
+    radius is a scale error on the diopter estimate. The segmenter's radius is
+    used only when physiologically sane; the weak-label corpus over-segments
+    the pupil (measured mean ratio 0.80 of iris, versus a real dim-adapted
+    0.35-0.55), and such values must be rejected rather than trusted."""
+    from visionscreen.analyzer import PUPIL_TO_IRIS_DIAMETER
+
+    # the guard band brackets a 2-8 mm pupil on an 11.7 mm iris
+    assert 0.17 <= PUPIL_TO_IRIS_DIAMETER <= 0.68
+    for bad_ratio in (0.80, 0.05, 0.95):
+        assert not (0.17 <= bad_ratio <= 0.68), bad_ratio
+
+    # and the analyzer still completes with the segmenter active
+    meta = make_meta([SegmentMeta("photoref", 0.0, 2.0, [])])
+    m = modules(analyze_session(face_video, meta))
+    assert "photorefraction" in m

@@ -126,7 +126,17 @@ def _eye_measurements(frame, landmarks, side, segmenter: EyeSegmenter | None):
     return reflex_decentration_mm(reflex_px, ref_center, iris_d), pupil_mm
 
 
-def _photoref_frame(frame, landmarks, e_m, d_m):
+def _photoref_frame(frame, landmarks, e_m, d_m, segmenter: EyeSegmenter | None = None):
+    """Measure defocus from each eye's red reflex.
+
+    Pupil radius enters the crescent inversion as w = 2r - e/(d|A|), so an
+    error in r propagates into A *proportionally* — which is exactly the
+    signature seen on real pupils, where error grew with defocus magnitude
+    (0.073 D at 2 D, 0.30 D at 4 D). The 0.35-of-iris figure is a population
+    mean for a dim-adapted pupil, and real pupils vary widely, so use the
+    segmenter's measured radius whenever it is available and fall back to the
+    constant only when it is not.
+    """
     h, w = frame.shape[:2]
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     results = []
@@ -136,7 +146,20 @@ def _photoref_frame(frame, landmarks, e_m, d_m):
         if iris_d < 8:
             continue
         px_per_m = iris_d / (HVID_MM / 1000.0)
-        est = measure_reflex(gray, center, PUPIL_TO_IRIS_DIAMETER * iris_d,
+
+        pupil_r = PUPIL_TO_IRIS_DIAMETER * iris_d
+        if segmenter is not None and segmenter.available:
+            crop, (ox, oy) = eye_crop(frame, landmarks, side)
+            if crop.size:
+                seg = segmenter.segment(cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY))
+                # trust the measurement only when it is physiologically sane
+                # (2-8 mm pupil on an 11.7 mm iris = 0.17-0.68 of iris diameter)
+                if seg is not None and seg.pupil_radius_px > 0:
+                    ratio = (2 * seg.pupil_radius_px) / iris_d
+                    if 0.17 <= ratio <= 0.68:
+                        pupil_r = seg.pupil_radius_px
+
+        est = measure_reflex(gray, center, pupil_r,
                              e_m=e_m, d_m=d_m, px_per_m=px_per_m)
         if est is not None:
             results.append(est)
@@ -207,7 +230,8 @@ def analyze_session(video_path: Path, meta: SessionMeta,
                         frame, face, brightness_range=PHOTOREF_BRIGHTNESS
                     ).passed:
                         pr_usable += 1
-                        est = _photoref_frame(frame, face.landmarks, pr_e, pr_d)
+                        est = _photoref_frame(frame, face.landmarks, pr_e,
+                                             pr_d, segmenter)
                         if est is None:
                             pr_dead += 1
                         else:
