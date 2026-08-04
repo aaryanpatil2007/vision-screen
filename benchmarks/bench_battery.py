@@ -74,9 +74,10 @@ def simulate_color(deficient: bool, rng) -> dict:
     return ans
 
 
-def simulate_pupil(amplitude_mm: float, rng, fps=30.0, dur=4.0, flash=0.6):
+def simulate_pupil(amplitude_mm: float, rng, fps=60.0, dur=4.0, flash=0.6,
+                   baseline: float = 4.2):
     ts, d = [], []
-    base = 4.2
+    base = baseline
     for i in range(int(dur * fps)):
         t = i / fps
         v = base
@@ -106,7 +107,7 @@ def run(n_patients: int = 120, seed: int = 11) -> dict:
     acuity_err, contrast_err = [], []
     align_tp = align_fp = align_tn = align_fn = 0
     color_tp = color_fp = color_tn = color_fn = 0
-    rapd_tp = rapd_fp = rapd_tn = rapd_fn = 0
+    aniso_tp = aniso_fp = aniso_tn = aniso_fn = 0
     astig_axis_err = []
     photoref_err = []
 
@@ -144,16 +145,19 @@ def run(n_patients: int = 120, seed: int = 11) -> dict:
         elif not cvd and flagged: color_fp += 1
         else: color_tn += 1
 
-        # --- RAPD ---
-        has_rapd = bool(rng.random() < 0.3)
-        left = simulate_pupil(1.1, rng)
-        right = simulate_pupil(0.2 if has_rapd else 1.05, rng)
-        f = score_pupillometry(left, right, 0.9)
-        flagged = "asymmetric pupil response" in f.metrics.get("flags", [])
-        if has_rapd and flagged: rapd_tp += 1
-        elif has_rapd and not flagged: rapd_fn += 1
-        elif not has_rapd and flagged: rapd_fp += 1
-        else: rapd_tn += 1
+        # --- anisocoria (NOT RAPD: a bilateral flash cannot reveal an afferent
+        # defect, so we benchmark the resting size difference we can measure) ---
+        has_aniso = bool(rng.random() < 0.3)
+        base_l = 4.2
+        base_r = base_l - (rng.uniform(1.1, 2.0) if has_aniso else rng.uniform(0, 0.6))
+        left = simulate_pupil(1.1, rng, baseline=base_l)
+        right = simulate_pupil(1.05, rng, baseline=base_r)
+        f = score_pupillometry(left, right, 0.9, fps=60.0)
+        flagged = "unequal pupil sizes (anisocoria)" in f.metrics.get("flags", [])
+        if has_aniso and flagged: aniso_tp += 1
+        elif has_aniso and not flagged: aniso_fn += 1
+        elif not has_aniso and flagged: aniso_fp += 1
+        else: aniso_tn += 1
 
         # --- astigmatic dial (axis recovery with human response noise) ---
         true_axis = float(rng.uniform(0, 180))
@@ -193,7 +197,7 @@ def run(n_patients: int = 120, seed: int = 11) -> dict:
         },
         "alignment_strabismus": prf(align_tp, align_fp, align_tn, align_fn),
         "color_vision": prf(color_tp, color_fp, color_tn, color_fn),
-        "rapd": prf(rapd_tp, rapd_fp, rapd_tn, rapd_fn),
+        "anisocoria": prf(aniso_tp, aniso_fp, aniso_tn, aniso_fn),
         "astigmatism_axis": {
             "mean_abs_axis_error_deg": round(float(np.mean(astig_axis_err)), 1),
         },
@@ -214,7 +218,7 @@ def main() -> None:
     print(f"| acuity | mean abs error | {a['mean_abs_error_logmar']} logMAR |")
     print(f"| acuity | within chart repeatability (0.15) | {a['within_chart_repeatability_pct']}% |")
     print(f"| contrast | mean abs error | {result['contrast']['mean_abs_error_log_cs']} log CS |")
-    for key in ("alignment_strabismus", "color_vision", "rapd"):
+    for key in ("alignment_strabismus", "color_vision", "anisocoria"):
         r = result[key]
         print(f"| {key} | sensitivity / specificity | {r['sensitivity']} / {r['specificity']} |")
     print(f"| astigmatism | mean axis error | {result['astigmatism_axis']['mean_abs_axis_error_deg']}° |")

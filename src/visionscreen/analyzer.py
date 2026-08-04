@@ -371,7 +371,8 @@ def analyze_session(video_path: Path, meta: SessionMeta,
                 if len(ts_l) >= 20:
                     traces[side] = PupilTrace(ts=ts_l, diameter_mm=d_l, flash_ts=flashes[0])
         pvalid = (len(pframes) / seg_total) if seg_total else 0.0
-        findings.append(score_pupillometry(traces.get("left"), traces.get("right"), pvalid))
+        findings.append(score_pupillometry(
+            traces.get("left"), traces.get("right"), pvalid, fps=meta.fps))
 
     # ---- photorefraction ----
     if seg_photoref is not None:
