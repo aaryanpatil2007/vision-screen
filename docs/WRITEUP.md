@@ -610,12 +610,42 @@ Consequences, recorded rather than papered over:
   with a true pupil boundary. The segmentation numbers should be read as
   *consistency with the weak-label rule*, which §5 already states, but this
   puts a number on how far that rule sits from anatomy.
-* The fix is a tighter pupil criterion in weak labeling — an intensity floor
-  relative to the iris annulus rather than a pure Otsu split — followed by a
-  retrain. Not done here.
+**Fixed.** The threshold is now chosen by searching for the intensity level
+whose dark core lands nearest a physiological target area, rather than taking
+Otsu's split or the first level under a ceiling. (The latter was tried first
+and clamped every label to the boundary: 0.645 ± 0.014, an artefact of the
+bound rather than a measurement — visible in the implausibly small spread.)
+
+| stage | pupil / iris diameter |
+|---|---|
+| original Otsu rule | 0.812 ± 0.038 |
+| bounded | 0.645 ± 0.014 (clamped) |
+| **targeted** | **0.447 ± 0.026** |
+| physiological, dim-adapted | 0.35–0.55 |
+
+The rebuilt corpus grew to **6,792 labelled crops at 60% acceptance** (from
+6,130 at 54%) because a targeted search succeeds where a rigid bound failed.
+
+**The retrained model's IoU went down, and that is the correct result.** Real
+pupil IoU fell 0.848 → 0.651. The pupil is now roughly a third of its former
+labelled area, and IoU penalises a fixed boundary error far more heavily on a
+small target. The previous figure was flattering because it measured agreement
+with an oversized blob; 0.651 against an anatomically correct pupil is the more
+honest number.
+
+**The payoff is downstream.** Photorefraction accepts a segmenter radius only
+inside the physiological band. With the old labels the model predicted ~0.81 of
+iris diameter, so **no** prediction qualified and the inversion always fell
+back to a population constant. After the fix the model predicts **0.476 ±
+0.041 and 100% of predictions qualify**, so the crescent inversion finally uses
+each subject's own measured pupil — which is precisely the term whose error was
+producing the defocus-proportional scale error in §4.4f.
 
 This is the kind of defect that only surfaces when a downstream module cares
-about a quantity the label was never checked against.
+about a quantity the label was never checked against, and the chain from
+symptom to cause ran: error grows with defocus → radius enters proportionally →
+radius came from a constant → the measurement that should replace it was
+unusable → the labels behind it were wrong.
 
 ### 4.5 Why real sessions failed before
 
