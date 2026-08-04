@@ -120,6 +120,36 @@ and a pass/fail against the criteria above.
 
 ---
 
+## 6b. A partial substitute assembled from the literature
+
+`visionscreen.data.pmc_cases` mines open-access case reports for figures that
+pair a patient photograph with a clinician's prism cover test measurement in
+the caption. Yield is 14 pairs per 150 articles; the ~1,136 matching
+open-access articles should give on the order of 100.
+
+This is real paired data — a real patient, a real clinician's measurement —
+and it is the closest substitute for the study above that can be assembled
+without recruiting anyone. Its limits are severe and must travel with any
+number derived from it:
+
+* The caption's deviation may refer to a **different gaze position or time
+  point** than the photograph; pre/post-operative figure pairs are common.
+* **Camera distance and magnification are unknown**, so the iris-diameter scale
+  is the only calibration available.
+* Publication selects for **photogenic, larger deviations** — a spectrum bias
+  that inflates apparent sensitivity and says nothing about specificity.
+* There are **no negative controls**: case reports do not publish photographs
+  of normally-aligned eyes with a documented 0 PD cover test.
+
+It can therefore bound agreement on large deviations in selected patients. It
+cannot estimate specificity, and it is not a substitute for §4.
+
+**Status: index built, images not retrieved.** NCBI and Europe PMC restrict
+figure-image endpoints by origin and all three routes returned 404/500 from the
+development environment. The tool records canonical image URLs and the PMC OA
+package lookup for each pair, so retrieval and scoring can run wherever access
+exists.
+
 ## 7. What this study still will not establish
 
 Agreement is not clinical utility. Even a perfectly agreeing screener does not
