@@ -23,13 +23,14 @@ from visionscreen.modules.acuity import Staircase, score_trials
 from visionscreen.modules.alignment import AlignmentFrame, score_alignment
 from visionscreen.modules.astigmatic import score_astigmatic_dial
 from visionscreen.modules.colorvision import ISHIHARA_STYLE_PLATES, score_color_vision
-from visionscreen.modules.contrast import score_contrast
+from visionscreen.modules.contrast import display_ceiling_log_cs, score_contrast
 from visionscreen.modules.photoref import measure_reflex
 from visionscreen.modules.pupillometry import PupilTrace, score_pupillometry
 from visionscreen.synth.photoref import render_reflex
 
 DIRS = ["up", "right", "down", "left"]
 CHART_REPEATABILITY_LOGMAR = 0.15
+CS_CEILING = display_ceiling_log_cs()
 
 
 # ---------- virtual observers ----------
@@ -47,17 +48,23 @@ def simulate_acuity(true_logmar: float, lapse: float, rng) -> list[dict]:
     return out
 
 
-def simulate_contrast(true_log_cs: float, lapse: float, rng) -> list[dict]:
-    """Pelli-Robson triplets: 3 letters per level, stop when a triplet fails."""
-    out = []
+def simulate_contrast(true_log_cs: float, lapse: float, rng,
+                      ceiling: float | None = None) -> list[dict]:
+    """Pelli-Robson triplets: 3 letters per level, stop when a triplet fails.
+    The ladder is truncated at the display ceiling, exactly as the app does."""
+    out, consecutive_fails = [], 0
     for i in range(16):
         log_cs = round(0.15 * i, 2)
+        if ceiling is not None and log_cs > ceiling:
+            break
         n_correct = 0
         for _ in range(3):
             correct = (log_cs <= true_log_cs) and (rng.random() > lapse)
             out.append({"log_cs": log_cs, "correct": bool(correct)})
             n_correct += int(correct)
-        if n_correct < 2:
+        # One bad triplet can be a lapse; two in a row is the real endpoint.
+        consecutive_fails = 0 if n_correct >= 2 else consecutive_fails + 1
+        if consecutive_fails >= 2:
             break
     return out
 
@@ -105,6 +112,7 @@ def simulate_alignment(deviation_pd: float, rng, n=60) -> list[AlignmentFrame]:
 def run(n_patients: int = 120, seed: int = 11) -> dict:
     rng = np.random.default_rng(seed)
     acuity_err, contrast_err = [], []
+    contrast_censored = 0
     align_tp = align_fp = align_tn = align_fn = 0
     color_tp = color_fp = color_tn = color_fn = 0
     aniso_tp = aniso_fp = aniso_tn = aniso_fn = 0
@@ -122,9 +130,15 @@ def run(n_patients: int = 120, seed: int = 11) -> dict:
 
         # --- contrast ---
         true_cs = float(rng.uniform(0.6, 2.1))
-        f = score_contrast(simulate_contrast(true_cs, lapse, rng), 0.9)
+        f = score_contrast(simulate_contrast(true_cs, lapse, rng, CS_CEILING), 0.9)
         if f.metrics.get("log_cs") is not None:
-            contrast_err.append(abs(f.metrics["log_cs"] - true_cs))
+            if "display_ceiling_log_cs" in f.metrics:
+                # The subject exceeded what an 8-bit screen can present. That is
+                # an instrument RANGE limit, not an estimation error, and
+                # averaging it into the error would misattribute the cause.
+                contrast_censored += 1
+            else:
+                contrast_err.append(abs(f.metrics["log_cs"] - true_cs))
 
         # --- alignment (half the cohort strabismic) ---
         has_strab = bool(rng.random() < 0.5)
@@ -194,6 +208,9 @@ def run(n_patients: int = 120, seed: int = 11) -> dict:
         "contrast": {
             "mean_abs_error_log_cs": round(float(np.mean(contrast_err)), 3),
             "p95_abs_error_log_cs": round(float(np.percentile(contrast_err, 95)), 3),
+            "n_measurable": len(contrast_err),
+            "n_above_display_ceiling": contrast_censored,
+            "display_ceiling_log_cs": round(CS_CEILING, 2),
         },
         "alignment_strabismus": prf(align_tp, align_fp, align_tn, align_fn),
         "color_vision": prf(color_tp, color_fp, color_tn, color_fn),
@@ -217,7 +234,10 @@ def main() -> None:
     print("|---|---|---|")
     print(f"| acuity | mean abs error | {a['mean_abs_error_logmar']} logMAR |")
     print(f"| acuity | within chart repeatability (0.15) | {a['within_chart_repeatability_pct']}% |")
-    print(f"| contrast | mean abs error | {result['contrast']['mean_abs_error_log_cs']} log CS |")
+    c = result["contrast"]
+    print(f"| contrast | mean abs error (in range) | {c['mean_abs_error_log_cs']} log CS |")
+    print(f"| contrast | above display ceiling ({c['display_ceiling_log_cs']}) | "
+          f"{c['n_above_display_ceiling']}/{result['n_patients']} |")
     for key in ("alignment_strabismus", "color_vision", "anisocoria"):
         r = result[key]
         print(f"| {key} | sensitivity / specificity | {r['sensitivity']} / {r['specificity']} |")

@@ -11,6 +11,7 @@ import {
   DIRS, SLOAN, letterHeightPx, drawTumblingE, contrastToGray,
   drawAstigmaticDial, drawAmsler, drawColorPlate, mulberry32,
   drawRDS, disparityArcsec, drawWorthDots,
+  renderableFloorLogmar, displayCeilingLogCS,
 } from "./stimuli.js";
 
 const PLATES = [
@@ -192,7 +193,15 @@ class App {
     const seg = this.session.open(testId);
     this.session.log(seg, "cover", { eye: eyeLabel });
     let logmar = 1.0, trials = 0, reversals = 0, lastCorrect = null;
-    const MAX = 26, MIN_TRIALS = 12, MAX_REV = 6;
+    const MAX = 26, MIN_TRIALS = 12, MAX_REV = 8;
+    // Never present an optotype finer than one pixel of stroke — below that
+    // the E is no longer the shape it claims to be.
+    const floorLogmar = renderableFloorLogmar(
+      this.session.distanceCm, this.session.pxPerCm);
+    this.session.log(seg, "display_floor", { logmar: floorLogmar });
+    // Kaernbach weighted up-down targeting the guessing-corrected 50% point
+    // for a 4-alternative task: S_up / S_down = 5/3.
+    const STEP_DOWN = 0.1, STEP_UP = 0.1 * 5 / 3, HALVE_AFTER = 2;
 
     while (trials < MAX && !(trials >= MIN_TRIALS && reversals >= MAX_REV)) {
       const dir = DIRS[Math.floor(this.rng() * 4)];
@@ -214,7 +223,11 @@ class App {
       this.session.log(seg, "trial", { logmar: +logmar.toFixed(2), shown: dir, answered: answer });
       if (lastCorrect !== null && correct !== lastCorrect) reversals++;
       lastCorrect = correct;
-      logmar = Math.min(1.3, Math.max(-0.3, logmar + (correct ? -0.1 : 0.2)));
+      // step halves once the run has bracketed threshold; the up/down RATIO
+      // is preserved so the convergence criterion does not move
+      const scale = reversals >= HALVE_AFTER ? 0.5 : 1.0;
+      logmar = Math.min(1.3, Math.max(Math.max(-0.3, floorLogmar),
+                        logmar + (correct ? -STEP_DOWN : STEP_UP) * scale));
       trials++;
     }
     this.session.close(seg);
@@ -231,8 +244,12 @@ class App {
     // 0.15 log-unit steps, stop when a whole triplet is failed.
     const seg = this.session.open("contrast");
     const keys = [...SLOAN.map((s) => s.toLowerCase()), " "];
+    const csCeiling = displayCeilingLogCS();
+    this.session.log(seg, "display_ceiling", { log_cs: csCeiling });
+    let consecutiveFails = 0;
     for (let i = 0; i < 16; i++) {
       const logCS = +(0.15 * i).toFixed(2);
+      if (logCS > csCeiling) break;   // beyond this every rung is the same image
       const gray = contrastToGray(logCS);
       let correctInTriplet = 0;
       for (let k = 0; k < 3; k++) {
@@ -249,7 +266,10 @@ class App {
           log_cs: logCS, shown: letter, answered: ans.trim() || null, correct,
         });
       }
-      if (correctInTriplet < 2) break;   // whole triplet failed — chart endpoint
+      // One failed triplet can be a lapse; require two in a row before
+      // stopping, as reading down a printed chart does.
+      consecutiveFails = correctInTriplet >= 2 ? 0 : consecutiveFails + 1;
+      if (consecutiveFails >= 2) break;
     }
     this.session.close(seg);
     this.hideStage();
@@ -605,10 +625,15 @@ class App {
   }
 
   async finish() {
-    this.stage(`<div style="text-align:center">
-      <div class="spinner"></div>
-      <h1 style="margin-top:18px">Analyzing your session…</h1>
-      <p class="lead">Processing the recording frame by frame. This can take a minute.</p></div>`);
+    const aborted = this.abortedReason
+      ? `<h1 style="margin-top:18px">Something went wrong</h1>
+         <p class="lead">The test stopped early
+         (<code>${this.abortedReason}</code>). Analyzing the tests you did
+         complete — the report will cover those.</p>`
+      : `<h1 style="margin-top:18px">Analyzing your session…</h1>
+         <p class="lead">Processing the recording frame by frame. This can take a minute.</p>`;
+    this.stage(`<div style="text-align:center;max-width:600px;padding:0 24px">
+      <div class="spinner"></div>${aborted}</div>`);
     this.tracker.stop();
     this.recorder.stop();
     await new Promise((r) => (this.recorder.onstop = r));
@@ -625,9 +650,42 @@ class App {
 
 // ---------- bootstrap ----------
 
+/**
+ * A thrown stage must never leave the user staring at a frozen screen. Any
+ * uncaught error aborts the battery, uploads whatever was collected, and says
+ * what happened — a partial report beats an infinite wait.
+ */
+function installCrashHandler(app) {
+  let handled = false;
+  const onCrash = async (detail) => {
+    if (handled) return;
+    handled = true;
+    console.error("battery aborted:", detail);
+    try {
+      // Record the reason so the analyzing screen keeps showing it — otherwise
+      // finish() overwrites the explanation and the user never learns why the
+      // battery stopped.
+      app.abortedReason = String(detail).slice(0, 160);
+      if (app.recorder && app.recorder.state !== "inactive") {
+        await app.finish();
+      } else {
+        app.stage(`<div style="max-width:560px;text-align:center;padding:0 24px">
+          <h1>Something went wrong</h1>
+          <p class="lead">The test hit an error and stopped
+          (<code>${app.abortedReason}</code>). Reload to start again.</p></div>`);
+      }
+    } catch (e) {
+      console.error("could not recover:", e);
+    }
+  };
+  window.addEventListener("error", (e) => onCrash(e.message || e.error));
+  window.addEventListener("unhandledrejection", (e) => onCrash(e.reason));
+}
+
 window.addEventListener("DOMContentLoaded", async () => {
   const app = new App();
   window.__app = app;
+  installCrashHandler(app);
 
   $("#btnCamera").addEventListener("click", async () => {
     $("#btnCamera").disabled = true;

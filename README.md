@@ -66,13 +66,13 @@ report. Everything runs locally; the video never leaves the machine.
 
 | test | result |
 |---|---|
-| Visual acuity | 0.065 logMAR mean error; 93% within chart test-retest repeatability |
-| Contrast sensitivity | 0.137 log CS mean error |
+| Visual acuity | 0.049 logMAR mean error; 93% within chart test-retest repeatability |
+| Contrast sensitivity | 0.073 log CS mean error (in display range) |
 | Strabismus (≥10 PD) | sensitivity 1.00 / specificity 1.00 |
 | Anisocoria (≥1 mm) | sensitivity 1.00 / specificity 1.00 |
 | Color deficiency | sensitivity 1.00 / specificity 0.96 |
-| Astigmatism axis | 5.1° mean error |
-| Photorefraction | 0.028 D mean spherical-equivalent error |
+| Astigmatism axis | 4.1° mean error |
+| Photorefraction | 0.027 D mean spherical-equivalent error |
 
 Full methods, limitations, and citations: [`docs/WRITEUP.md`](docs/WRITEUP.md).
 

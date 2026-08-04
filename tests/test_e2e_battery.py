@@ -109,3 +109,21 @@ def test_report_never_reports_metrics_for_inconclusive(server, browser_ctx):
         return out;
     }""")
     assert bad == [], f"inconclusive findings showing metrics: {bad}"
+
+
+@pytest.mark.slow
+def test_thrown_stage_does_not_hang_the_app(server, browser_ctx):
+    """A JS error mid-battery must abort to a report, not freeze forever —
+    the failure mode that made an earlier build hang on the contrast test."""
+    page, _ = _page(browser_ctx, server)
+    page.click("#btnCamera")
+    page.wait_for_selector("text=Camera ready", timeout=60_000)
+    page.check("#brightnessOk")
+    page.wait_for_selector("#btnStart:not([disabled])", timeout=60_000)
+    page.click("#btnStart")
+    # break a stage deliberately once the run is under way
+    page.wait_for_timeout(1500)
+    page.evaluate("() => { setTimeout(() => { throw new Error('injected'); }, 200); }")
+    page.wait_for_selector("text=Something went wrong", timeout=30_000)
+    # and it must still reach a report rather than stopping there
+    page.wait_for_selector("text=Your screening report", timeout=120_000)

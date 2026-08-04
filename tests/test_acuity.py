@@ -51,3 +51,75 @@ def test_score_trials_tiers():
     f = score_trials(make_trials(3))
     assert f.tier == "inconclusive"
     assert f.metrics == {} or "logmar" not in f.metrics
+
+
+def test_staircase_targets_guessing_corrected_threshold():
+    """Kaernbach weighted up-down converges at p = S_up/(S_up+S_down). With a
+    4-alternative task the 0.1/0.2 pair lands at 55.6% *corrected*, a criterion
+    stricter than threshold that reports acuity optimistically."""
+    from visionscreen.modules.acuity import (
+        STEP_DOWN, STEP_UP, convergence_probability, corrected_convergence,
+    )
+    assert convergence_probability() == pytest.approx(0.625, abs=1e-6)
+    assert corrected_convergence() == pytest.approx(0.50, abs=1e-3)
+    # the old 0.2 step would have been biased
+    assert corrected_convergence(step_up=0.2) == pytest.approx(0.556, abs=1e-3)
+    assert STEP_UP / STEP_DOWN == pytest.approx(5 / 3, abs=1e-9)
+
+
+def test_display_floor_matches_pixel_geometry():
+    """A 1080p 24-inch laptop at 40 cm cannot render logMAR 0.0."""
+    from visionscreen.modules.acuity import letter_height_px, renderable_floor_logmar
+
+    px_per_cm = 1 / 0.02767   # 24" 1080p, 0.2767 mm pitch
+    floor = renderable_floor_logmar(distance_cm=40, px_per_cm=px_per_cm)
+    assert floor > 0.0, f"floor {floor:.2f} should be coarser than logMAR 0"
+    # at the floor exactly, the stroke is one pixel
+    assert letter_height_px(floor, 40, px_per_cm) == pytest.approx(5.0, abs=0.05)
+    # a 460 ppi phone at 30 cm does much better but STILL cannot reach -0.3:
+    # that needs ~38 cm on the same panel
+    phone = renderable_floor_logmar(30, 1 / 0.0055)
+    assert phone < 0.0
+    assert phone == pytest.approx(-0.20, abs=0.03)
+    assert renderable_floor_logmar(40, 1 / 0.0055) < -0.3
+
+
+def test_display_limited_acuity_reported_as_a_bound():
+    trials = make_trials(20, logmar=-0.1)
+    f = score_trials(trials, display_floor=-0.12)
+    assert "at or better than" in f.summary.lower()
+    assert "screen can draw" in f.summary
+    assert f.metrics["display_floor_logmar"] == -0.12
+
+
+def test_etdrs_equivalent_reported():
+    """Tumbling E reads ~0.15 logMAR conservative vs an ETDRS letter chart."""
+    f = score_trials(make_trials(20, logmar=0.30))
+    assert f.metrics["logmar"] == 0.3
+    assert f.metrics["etdrs_equivalent_logmar"] == pytest.approx(0.15, abs=0.01)
+
+
+def test_step_halving_preserves_convergence_criterion():
+    """Halving both steps must not move the threshold criterion."""
+    from visionscreen.modules.acuity import (
+        STEP_DOWN, STEP_UP, corrected_convergence,
+    )
+    full = corrected_convergence(STEP_UP, STEP_DOWN)
+    halved = corrected_convergence(STEP_UP * 0.5, STEP_DOWN * 0.5)
+    assert full == pytest.approx(halved, abs=1e-12)
+
+
+def test_reversal_scoring_survives_non_grid_levels():
+    """With a 5/3 step ratio, levels do not repeat — the estimator must not
+    depend on grouping trials by identical level (the bug this replaced)."""
+    trials, level, last = [], 1.0, None
+    for i in range(20):
+        correct = level >= 0.4
+        trials.append({"logmar": round(level, 4), "shown": "up",
+                       "answered": "up" if correct else "down"})
+        if last is not None and correct != last:
+            pass
+        last = correct
+        level += (-0.1 if correct else 0.1 * 5 / 3)
+    f = score_trials(trials)
+    assert f.metrics["logmar"] == pytest.approx(0.4, abs=0.12)

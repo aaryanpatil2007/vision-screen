@@ -244,14 +244,15 @@ Virtual patients with ground-truth conditions and realistic lapse rates
 
 | test | metric | result |
 |---|---|---|
-| Visual acuity | mean absolute error | **0.065 logMAR** |
-| Visual acuity | within chart test-retest repeatability (0.15 logMAR) | **93.3%** |
-| Contrast sensitivity | mean absolute error | **0.137 log CS** (≈1 triplet step) |
+| Visual acuity | mean absolute error | **0.049 logMAR** |
+| Visual acuity | within chart test-retest repeatability (0.15 logMAR) | **92.5%** |
+| Contrast sensitivity | mean absolute error, in range | **0.073 log CS** (½ triplet step) |
+| Contrast sensitivity | subjects above the 8-bit display ceiling | 14/120 (reported, not scored) |
 | Strabismus (≥10 PD) | sensitivity / specificity | **1.00 / 1.00** |
 | Color deficiency | sensitivity / specificity | **1.00 / 0.96** |
 | Anisocoria (≥1 mm) | sensitivity / specificity | **1.00 / 1.00** |
-| Astigmatism axis | mean absolute error | **5.1°** |
-| Photorefraction | mean absolute spherical-equivalent error | **0.028 D** |
+| Astigmatism axis | mean absolute error | **4.1°** |
+| Photorefraction | mean absolute spherical-equivalent error | **0.027 D** |
 
 Clinical chart acuity has a published test-retest repeatability of roughly
 0.10–0.20 logMAR, so an 0.077 logMAR algorithmic error sits at the noise floor
@@ -304,7 +305,30 @@ Each of these was found by measurement, not inspection:
    measurable: binocular PLR plus static anisocoria at a ≥1 mm threshold,
    since ≥0.4 mm occurs in 41% of normal subjects at some sitting and 19% at
    any given exam (Lam, Thompson & Corbett 1987).
-10. **Pupil latency reported at 30 fps** — frame quantization there has an SD
+10. **The acuity staircase targeted the wrong criterion.** A Kaernbach
+    weighted up-down converges where p = S_up/(S_up + S_down); the common
+    0.1/0.2 pair lands at 0.667 raw, which for a four-alternative task is
+    **55.6% guessing-corrected** — a stricter criterion than threshold, so
+    acuity read optimistically. The ratio is now 5/3 (0.1/0.1667), which lands
+    at exactly 50% corrected. Fixing it exposed a second bug: the scorer
+    grouped trials by identical level, which silently assumed the steps land on
+    a repeating grid. With a 5/3 ratio they do not, and the estimate collapsed
+    (error 0.065 → 0.193 logMAR). Replacing it with the standard reversal-mean
+    estimator plus step-halving after two reversals gives **0.049 logMAR**.
+11. **Contrast rungs that were byte-identical.** logCS 1.95, 2.10 and 2.25 all
+    render to code 254 against a white background on 8-bit sRGB — three rungs,
+    one image. The ladder is now truncated at the computed display ceiling
+    (2.07) and a result there is reported as a bound, not a measurement.
+12. **A single lapsed triplet ended the contrast run.** Stopping at the first
+    failed triplet put a **−1.15 log CS** bias on high-sensitivity observers,
+    who fail one triplet by chance and were then scored at that level.
+    Termination now requires two consecutive failed triplets, as reading down a
+    printed chart does (error 0.216 → 0.073).
+13. **A thrown stage hung the app forever.** An undefined variable in the
+    contrast loop left users on a frozen screen with no way forward — caught
+    only by the end-to-end browser test. The app now aborts to a report and
+    says what failed.
+14. **Pupil latency reported at 30 fps** — frame quantization there has an SD
    of ~9.6 ms, which exceeds the *lower bound* of the physiological inter-eye
    latency asymmetry range (8.3–35 ms; Bergamin & Kardon 2003). Latency is now
    withheld below 55 fps rather than reported as noise.

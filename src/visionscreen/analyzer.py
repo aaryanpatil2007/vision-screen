@@ -15,7 +15,7 @@ import cv2
 import numpy as np
 
 from visionscreen.ml.infer import EyeSegmenter
-from visionscreen.modules.acuity import score_trials
+from visionscreen.modules.acuity import renderable_floor_logmar, score_trials
 from visionscreen.modules.alignment import (
     AlignmentFrame,
     pursuit_conjugacy,
@@ -26,7 +26,7 @@ from visionscreen.modules.amsler import score_amsler
 from visionscreen.modules.astigmatic import score_astigmatic_dial
 from visionscreen.modules.behavioral import analyze_series
 from visionscreen.modules.colorvision import score_color_vision
-from visionscreen.modules.contrast import score_contrast
+from visionscreen.modules.contrast import display_ceiling_log_cs, score_contrast
 from visionscreen.modules.motility import score_motility
 from visionscreen.modules.photoref import measure_reflex, score_photoref
 from visionscreen.modules.pupillometry import PupilTrace, score_pupillometry
@@ -281,7 +281,8 @@ def analyze_session(video_path: Path, meta: SessionMeta,
         if s is None:
             continue
         trials = [ev.payload for ev in s.events if ev.kind == "trial"]
-        f = score_trials(trials)
+        floor = renderable_floor_logmar(meta.distance_cm, meta.px_per_cm)
+        f = score_trials(trials, display_floor=floor)
         if test_id != "acuity":
             f.module = f"Acuity ({label})"
 
@@ -322,7 +323,8 @@ def analyze_session(video_path: Path, meta: SessionMeta,
     if s is not None:
         trials = [{"log_cs": ev.payload["log_cs"], "correct": ev.payload["correct"]}
                   for ev in s.events if ev.kind == "trial"]
-        findings.append(score_contrast(trials, valid_fraction))
+        findings.append(score_contrast(trials, valid_fraction,
+                                       ceiling=display_ceiling_log_cs()))
 
     # ---- astigmatism ----
     s = meta.segment("astigmatism")

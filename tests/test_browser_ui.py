@@ -280,3 +280,28 @@ def test_gray_ramp_rendered_for_dark_end_check(server, browser_ctx):
     page, _ = _page(browser_ctx, server)
     n = page.evaluate("() => document.querySelectorAll('#grayRamp div').length")
     assert n == 16
+
+
+def test_display_limit_math_matches_server(server, browser_ctx):
+    """Client and server must agree on what the screen can physically show."""
+    from visionscreen.modules.acuity import renderable_floor_logmar
+    from visionscreen.modules.contrast import display_ceiling_log_cs
+
+    page, _ = _page(browser_ctx, server)
+    for dist, ppc in ((40, 36.14), (50, 55.1), (30, 181.8)):
+        js = page.evaluate(
+            """async ([d, p]) => {
+                const s = await import('/static/js/stimuli.js');
+                return s.renderableFloorLogmar(d, p);
+            }""",
+            [dist, ppc],
+        )
+        assert js == pytest.approx(renderable_floor_logmar(dist, ppc), rel=1e-9)
+
+    js_ceiling = page.evaluate(
+        """async () => {
+            const s = await import('/static/js/stimuli.js');
+            return s.displayCeilingLogCS();
+        }"""
+    )
+    assert js_ceiling == pytest.approx(display_ceiling_log_cs(), rel=1e-9)

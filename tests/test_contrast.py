@@ -86,3 +86,46 @@ def test_single_lapse_does_not_truncate_estimate():
     clean = score_contrast(triplet_trials(1.80), 0.9).metrics["log_cs"]
     lapsed = score_contrast(triplet_trials(1.80, lapse_at=0.75), 0.9).metrics["log_cs"]
     assert lapsed == pytest.approx(clean, abs=0.16)
+
+
+def test_eight_bit_ceiling_is_about_2_07():
+    from visionscreen.modules.contrast import display_ceiling_log_cs
+    assert display_ceiling_log_cs() == pytest.approx(2.07, abs=0.02)
+    assert display_ceiling_log_cs(background=1023, bits=10) > 2.6
+
+
+def test_ladder_truncated_so_no_two_rungs_render_identically():
+    """logCS 1.95, 2.10 and 2.25 all map to code 254 on 8-bit sRGB."""
+    from visionscreen.modules.contrast import (
+        contrast_to_luminance_pair, display_ceiling_log_cs, triplet_levels,
+    )
+    ceiling = display_ceiling_log_cs()
+    levels = triplet_levels(ceiling=ceiling)
+    codes = [contrast_to_luminance_pair(lv)[0] for lv in levels]
+    assert len(set(codes)) == len(codes), list(zip(levels, codes))
+    assert max(levels) <= ceiling
+    # untruncated, the ladder does contain duplicates — the bug this prevents
+    raw = [contrast_to_luminance_pair(lv)[0] for lv in triplet_levels()]
+    assert len(set(raw)) < len(raw)
+
+
+def test_ceiling_result_reported_as_a_bound():
+    trials = [{"log_cs": round(0.15 * i, 2), "correct": True} for i in range(14)] * 3
+    f = score_contrast(trials, valid_fraction=0.9)
+    assert "at or better than" in f.summary
+    assert "display_ceiling_log_cs" in f.metrics
+    assert f.metrics["log_cs"] <= f.metrics["display_ceiling_log_cs"] + 1e-9
+
+
+def test_one_bad_triplet_does_not_end_the_run():
+    """A single lapsed triplet mid-ladder must not be read as the endpoint —
+    that failure mode put a -1.15 log CS bias on high-sensitivity observers."""
+    trials = []
+    for i in range(14):
+        level = round(0.15 * i, 2)
+        # lapse the whole triplet at 0.90, then recover
+        lapsed = abs(level - 0.90) < 1e-9
+        for _ in range(3):
+            trials.append({"log_cs": level, "correct": (not lapsed) and level <= 1.80})
+    f = score_contrast(trials, valid_fraction=0.9)
+    assert f.metrics["log_cs"] > 1.5, f.metrics

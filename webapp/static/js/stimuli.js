@@ -231,3 +231,19 @@ export function drawWorthDots(ctx, cx, cy, radius) {
   dot(cx + radius, cy, "#00c853");            // green, right
   dot(cx, cy + radius, "#ffffff");            // white, bottom (both eyes)
 }
+
+/** Finest logMAR this display can draw (1-px stroke on a 5x5 optotype). */
+export function renderableFloorLogmar(distanceCm, pxPerCm, minStrokePx = 1.0) {
+  if (pxPerCm <= 0 || distanceCm <= 0) return Infinity;
+  const targetHeightCm = (5 * minStrokePx) / pxPerCm;
+  const arcmin = 2 * Math.atan(targetHeightCm / (2 * distanceCm)) * (180 / Math.PI) * 60;
+  return Math.log10(arcmin / 5);
+}
+
+/** Faintest logCS an 8-bit sRGB display can present against white. */
+export function displayCeilingLogCS(background = 255, bits = 8, gamma = 2.2) {
+  const maxCode = (1 << bits) - 1;
+  const bgLin = Math.pow(background / maxCode, gamma);
+  const fgLin = Math.pow((background - 1) / maxCode, gamma);
+  return -Math.log10((bgLin - fgLin) / bgLin);
+}
