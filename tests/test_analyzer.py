@@ -211,3 +211,18 @@ def test_photoref_rejects_implausible_pupil_radius(face_video):
     meta = make_meta([SegmentMeta("photoref", 0.0, 2.0, [])])
     m = modules(analyze_session(face_video, meta))
     assert "photorefraction" in m
+
+
+def test_skipped_tests_reported_as_not_attempted(face_video):
+    """Opting out of the dark-room tests is a choice, not a failure — the
+    report must not conflate it with 'we tried and could not measure'."""
+    events = [ScreenEvent(ts=0.1, kind="skipped",
+                          payload={"tests": ["pupil", "photoref"],
+                                   "reason": "no dark room available"})]
+    meta = make_meta([SegmentMeta("skipped", 0.0, 0.2, events)])
+    m = modules(analyze_session(face_video, meta))
+    for name in ("pupillometry", "photorefraction"):
+        assert name in m, name
+        assert m[name].metrics["not_attempted"] is True
+        assert "Not attempted" in m[name].summary
+        assert "darkened room" in m[name].summary

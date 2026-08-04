@@ -190,3 +190,41 @@ def test_staircase_uses_the_optotype_step():
     start = s.current()
     s.record(False)
     assert s.current() - start == pytest.approx(SLOAN.step_up, abs=1e-9)
+
+
+def test_cannot_see_largest_letter_is_not_reported_as_20_400():
+    """Someone who read nothing at the largest optotype must not be handed a
+    confident '20/399'. Their acuity is below what this test can present, and
+    that is a finding to act on."""
+    from visionscreen.modules.acuity import SLOAN
+
+    blind = [{"logmar": 1.3, "shown": "C", "answered": None} for _ in range(40)]
+    f = score_trials(blind, optotype=SLOAN)
+    assert "acuity below measurable range" in f.metrics["flags"]
+    assert "logmar" not in f.metrics          # no fabricated threshold
+    assert f.metrics["worse_than_snellen"].startswith("20/")
+    assert "optometrist" in f.summary
+
+
+def test_chance_level_guessing_also_counts_as_unmeasurable():
+    """Guessing at 1-in-10 is not seeing."""
+    from visionscreen.modules.acuity import SLOAN
+
+    trials = []
+    for i in range(40):
+        # exactly chance for a 10-alternative task
+        trials.append({"logmar": 1.3, "shown": "C",
+                       "answered": "C" if i % 10 == 0 else "K"})
+    f = score_trials(trials, optotype=SLOAN)
+    assert "acuity below measurable range" in f.metrics["flags"]
+
+
+def test_a_reader_at_the_ceiling_is_still_measured_normally():
+    """Poor vision that IS readable must still get a number."""
+    from visionscreen.modules.acuity import SLOAN
+
+    trials = [{"logmar": 1.3, "shown": "C", "answered": "C"} for _ in range(10)]
+    trials += [{"logmar": 1.1, "shown": "D", "answered": "D"} for _ in range(10)]
+    f = score_trials(trials, optotype=SLOAN)
+    assert "acuity below measurable range" not in f.metrics.get("flags", [])
+    assert f.metrics.get("logmar") is not None

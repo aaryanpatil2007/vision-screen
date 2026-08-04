@@ -305,3 +305,32 @@ def test_display_limit_math_matches_server(server, browser_ctx):
         }"""
     )
     assert js_ceiling == pytest.approx(display_ceiling_log_cs(), rel=1e-9)
+
+
+def test_spoken_instructions_available_and_off_by_default(server, browser_ctx):
+    """A vision test cannot assume its own instructions are legible."""
+    page, _ = _page(browser_ctx, server)
+    assert page.is_visible("#speakOn")
+    assert page.is_checked("#speakOn") is False
+    assert page.evaluate("() => window.__app.speak") is False
+    page.check("#speakOn")
+    assert page.evaluate("() => window.__app.speak") is True
+    # say() must be safe to call regardless of platform speech support
+    page.evaluate("() => window.__app.say('test utterance')")
+
+
+def test_dark_room_optout_controls_the_battery(server, browser_ctx):
+    page, _ = _page(browser_ctx, server)
+    assert page.is_checked("#darkYes")
+    assert page.evaluate("() => window.__app.canDarken") is True
+    page.check("#darkNo")
+    assert page.evaluate("() => window.__app.canDarken") is False
+
+
+def test_glasses_guidance_is_keep_them_on(server, browser_ctx):
+    """Telling people to remove correction is both clinically wrong for
+    screening and leaves many unable to see the instructions."""
+    page, _ = _page(browser_ctx, server)
+    body = page.inner_text("body").lower()
+    assert "keep your glasses or contacts on" in body
+    assert "otherwise take them off" not in body

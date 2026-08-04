@@ -207,6 +207,33 @@
 
       <div class="card">
         <div class="step-label">Step four</div>
+        <h2>Can you darken the room?</h2>
+        <p class="hint">
+          Three of the thirteen tests — pupil response, refraction, and the alignment
+          part of eye tracking — need the screen to be the brightest thing in the room.
+          They read light reflected off your own eye, and daylight drowns it out.
+          <strong>The other ten work in any lighting.</strong>
+        </p>
+        <div style="display:grid;gap:0.7rem;margin-top:1.3rem">
+          <label class="hint" style="display:flex;gap:0.7rem;align-items:flex-start;cursor:pointer">
+            <input type="radio" name="darkroom" id="darkYes" value="yes" checked style="margin-top:0.35rem">
+            <span><strong>Yes</strong> — I can dim the lights or draw the curtains when asked.
+            All thirteen tests will run.</span>
+          </label>
+          <label class="hint" style="display:flex;gap:0.7rem;align-items:flex-start;cursor:pointer">
+            <input type="radio" name="darkroom" id="darkNo" value="no" style="margin-top:0.35rem">
+            <span><strong>No</strong> — skip those three. The report will say they were
+            not attempted rather than pretending they were inconclusive, and the run is
+            about four minutes shorter.</span>
+          </label>
+        </div>
+        <p class="hint" id="lightNow" style="margin:1.3rem 0 0;font-family:var(--mono);font-size:0.78rem">
+          Room light, measured from your camera: <strong style="color:var(--cyan)">—</strong>
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="step-label">Step five</div>
         <h2>Screen brightness</h2>
         <p class="hint">
           Turn brightness to at least 75%. Acuity standards call for 80–320 cd/m²; at a
@@ -226,17 +253,27 @@
       </div>
 
       <div class="card">
-        <div class="step-label">Step five</div>
+        <div class="step-label">Step six</div>
         <h2>Before you start</h2>
         <div class="grid2" style="margin-top:1.2rem">
-          <p class="hint">Wear your usual glasses or contacts only if you want your
-            <em>corrected</em> vision tested — otherwise take them off.</p>
+          <p class="hint"><strong>Keep your glasses or contacts on.</strong> Screening
+            measures the vision you actually live with, and that is what a clinic
+            records too. Removing them measures a refraction this test cannot do
+            properly — and would leave many people unable to see the instructions.</p>
           <p class="hint">Two tests need <strong>red-cyan 3-D glasses</strong>, red lens
             over the right eye. Without them, depth and fusion are skipped.</p>
           <p class="hint">You'll cover one eye at a time — use your palm, not your fingers.</p>
           <p class="hint">The last two tests need a dark room. You can dim the lights
             when prompted.</p>
         </div>
+        <label class="hint" style="display:flex;gap:0.7rem;align-items:flex-start;
+               cursor:pointer;margin-top:1.6rem;padding-top:1.4rem;border-top:1px solid var(--line)">
+          <input type="checkbox" id="speakOn" style="margin-top:0.35rem">
+          <span><strong>Read the instructions aloud.</strong> This is a vision test, so
+          the instructions themselves may be hard to read. Every prompt is spoken by your
+          browser — nothing is sent anywhere. The letters and patterns still have to be
+          seen; only the guidance is spoken.</span>
+        </label>
         <p style="margin:2rem 0 0"><button class="primary" id="btnStart" disabled>Begin screening</button></p>
       </div>
     </section>

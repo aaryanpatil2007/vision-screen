@@ -42,6 +42,7 @@ URGENT_FLAGS = {
     "missing area (possible scotoma)",
     "asymmetric pupil response",
     "possible eye misalignment",
+    "acuity below measurable range",
 }
 
 _METRIC_LABELS = {
@@ -100,6 +101,9 @@ _METRIC_LABELS = {
     "display_ceiling_log_cs": "Faintest this screen can show (log CS)",
     "display_floor_logmar": "Finest letter this screen can draw (logMAR)",
     "logmar_raw_tumbling_e": "Raw threshold (logMAR)",
+    "worse_than_logmar": "Worse than (logMAR)",
+    "worse_than_snellen": "Worse than (Snellen)",
+    "not_attempted": "Not attempted",
     "optotype_correction_logmar": "Chart-scale correction (logMAR)",
 }
 

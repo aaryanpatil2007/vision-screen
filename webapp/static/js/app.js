@@ -84,6 +84,24 @@ class App {
     this.stepIndex = 0;
     this.pxPerCm = 96 / 2.54;
     this.rng = mulberry32(20260804);
+    this.canDarken = true;
+    this.speak = false;
+  }
+
+  /**
+   * Read text aloud. Someone who cannot comfortably read the screen still has
+   * to be able to follow the protocol — and this is a vision test, so assuming
+   * the instructions are legible is exactly the wrong assumption. Uses the
+   * browser's own speech synthesis; no network, no dependency.
+   */
+  say(text) {
+    if (!this.speak || !window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text.replace(/\s+/g, " ").trim());
+      u.rate = 0.98; u.pitch = 1.0;
+      window.speechSynthesis.speak(u);
+    } catch (e) { /* speech is an aid, never a dependency */ }
   }
 
   // ---------- infrastructure ----------
@@ -561,6 +579,40 @@ class App {
     this.hideStage();
   }
 
+  /** Hold until the room is actually dark enough, with live feedback. */
+  async waitForDarkness(maxWaitMs = 45000) {
+    const st = this.stage(`
+      <div style="max-width:560px;text-align:center;padding:0 24px">
+        <h1>Dim the room</h1>
+        <p class="lede" style="margin:0 auto">This test reads light reflected off your
+        own eye, so the screen needs to be the brightest thing here. Turn off the
+        lights or draw the curtains — the reading below updates live.</p>
+        <p style="font-family:var(--mono);font-size:2.6rem;margin:1.8rem 0 0.4rem"
+           id="lvl">—</p>
+        <p class="hint" id="lvlmsg" style="margin:0 auto">waiting…</p>
+        <p style="margin-top:2rem">
+          <button class="ghost" data-key="skip">Skip this test instead</button></p>
+      </div>`, { blackout: true });
+    const t0 = performance.now();
+    return new Promise((resolve) => {
+      const tick = setInterval(() => {
+        const b = this.tracker ? this.tracker.stats.brightness : 999;
+        const el = st.querySelector("#lvl"), msg = st.querySelector("#lvlmsg");
+        if (el) {
+          el.textContent = Math.round(b);
+          el.style.color = b <= 90 ? "var(--good)" : "var(--warn)";
+        }
+        if (msg) msg.textContent = b <= 90
+          ? "dark enough — starting" : "still too bright, keep dimming";
+        if (b <= 90) { clearInterval(tick); setTimeout(() => resolve(true), 900); }
+        else if (performance.now() - t0 > maxWaitMs) { clearInterval(tick); resolve(false); }
+      }, 400);
+      st.querySelector("[data-key=skip]").addEventListener("click", () => {
+        clearInterval(tick); resolve(false);
+      }, { once: true });
+    });
+  }
+
   async runPupil() {
     this.setStep("pupil");
     await this.prompt("Pupil light response",
@@ -614,6 +666,7 @@ class App {
   // ---------- flow ----------
 
   prompt(title, body) {
+    this.say(`${title}. ${body}`);
     return new Promise((resolve) => {
       const st = this.stage(`
         <div style="max-width:620px;text-align:center;padding:0 24px">
@@ -642,8 +695,26 @@ class App {
     await this.runStereo();
     await this.runSuppression();
     await this.runMotility();
-    await this.runPupil();
-    await this.runPhotoref();
+    if (this.canDarken) {
+      const darkEnough = await this.waitForDarkness();
+      if (darkEnough) {
+        await this.runPupil();
+        await this.runPhotoref();
+      } else {
+        const seg = this.session.open("skipped");
+        this.session.log(seg, "skipped", { tests: ["pupil", "photoref"],
+                                           reason: "room never became dark enough" });
+        this.session.close(seg);
+        this.hideStage();
+      }
+    } else {
+      // Recorded explicitly so the report can say "not attempted" rather than
+      // "inconclusive" — the user made a choice, the test did not fail.
+      const seg = this.session.open("skipped");
+      this.session.log(seg, "skipped", { tests: ["pupil", "photoref"],
+                                         reason: "no dark room available" });
+      this.session.close(seg);
+    }
 
     await this.finish();
   }
@@ -763,6 +834,38 @@ window.addEventListener("DOMContentLoaded", async () => {
   };
   brightness.addEventListener("change", refreshStart);
   app.onCameraReady = refreshStart;
+
+  // dark-room capability: the user's answer, not an assumption
+  const darkNo = $("#darkNo");
+  const syncDark = () => { app.canDarken = !(darkNo && darkNo.checked); };
+  document.querySelectorAll('input[name="darkroom"]').forEach(
+    (r) => r.addEventListener("change", syncDark));
+  syncDark();
+
+  // live room-light readout, so "dim the room" is verifiable rather than hopeful
+  const lightNow = $("#lightNow");
+  if (lightNow) {
+    setInterval(() => {
+      if (!app.tracker) return;
+      const b = app.tracker.stats.brightness;
+      const dark = b <= 90;
+      lightNow.innerHTML =
+        `Room light, measured from your camera: <strong style="color:${
+          dark ? "var(--good)" : "var(--warn)"}">${Math.round(b)}</strong>` +
+        `<span style="color:var(--dim)"> — ${dark
+          ? "dark enough for the light-reflex tests"
+          : "too bright for those three; dim below 90 when prompted"}</span>`;
+    }, 700);
+  }
+
+  // spoken guidance — a vision test cannot assume its instructions are legible
+  const speakOn = $("#speakOn");
+  if (speakOn) {
+    speakOn.addEventListener("change", () => {
+      app.speak = speakOn.checked;
+      if (app.speak) app.say("Spoken instructions are on.");
+    });
+  }
 
   startBtn.addEventListener("click", () => app.runAll());
 });

@@ -174,6 +174,35 @@ def score_trials(trials: list[dict], display_floor: float | None = None,
             reversals.append(level)
         last_correct = ok
 
+    # --- did they see the largest letter at all? ---
+    # A subject who never beats chance at the coarsest optotype has vision
+    # below what this test can present. Reporting the ceiling as a threshold
+    # would hand a confident "20/400" to someone who saw nothing, which is
+    # both wrong and the opposite of useful for the person most in need of
+    # attention.
+    coarsest = max(lm for lm, _ in correct_at)
+    at_coarsest = [ok for lm, ok in correct_at if lm >= coarsest - 1e-9]
+    chance = optotype.guess_rate
+    if len(at_coarsest) >= 3 and (sum(at_coarsest) / len(at_coarsest)) <= chance + 1e-9:
+        return Finding(
+            module="acuity",
+            summary=(
+                f"The largest letter this test can show ({coarsest:.2f} logMAR, "
+                f"about {snellen_hint(coarsest)}) was not read reliably, so acuity "
+                "is below the range this screening can measure. That is a result, "
+                "not a failure — it should be taken to an optometrist rather than "
+                "retaken here."
+            ),
+            tier="measured",
+            metrics={
+                "flags": ["acuity below measurable range"],
+                "worse_than_logmar": round(coarsest, 2),
+                "worse_than_snellen": snellen_hint(coarsest),
+                "trials": n,
+                "optotype": optotype.name,
+            },
+        )
+
     if len(reversals) >= 2:
         tail = reversals[-MAX_REVERSALS:]
         # drop the first reversal of the tail: the earliest one is still

@@ -439,8 +439,33 @@ def analyze_session(video_path: Path, meta: SessionMeta,
         findings.append(score_pupillometry(
             traces.get("left"), traces.get("right"), pvalid, fps=meta.fps))
 
+    # ---- explicitly skipped tests ----
+    # A test the user opted out of is not an inconclusive result; saying so
+    # keeps the report honest and stops "inconclusive" from meaning two things.
+    s = meta.segment("skipped")
+    if s is not None:
+        for ev in s.events:
+            if ev.kind != "skipped":
+                continue
+            names = {"pupil": "pupillometry", "photoref": "photorefraction"}
+            for t in ev.payload.get("tests", []):
+                findings.append(Finding(
+                    module=names.get(t, t),
+                    summary=(
+                        "Not attempted — this test needs a darkened room, and "
+                        f"{ev.payload.get('reason', 'one was not available')}. "
+                        "Everything else in the battery ran normally."
+                    ),
+                    tier="inconclusive",
+                    metrics={"flags": [], "not_attempted": True},
+                    retakes=["Repeat this test after dark, or with the curtains drawn."],
+                ))
+
     # ---- photorefraction ----
-    if seg_photoref is not None:
+    if seg_photoref is not None and not any(
+        f.metrics.get("not_attempted") and f.module == "photorefraction"
+        for f in findings
+    ):
         pr_valid = (pr_usable / pr_total) if pr_total else 0.0
         findings.append(score_photoref(pr_estimates, pr_dead, pr_valid))
 
