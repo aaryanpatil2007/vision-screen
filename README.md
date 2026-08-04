@@ -60,7 +60,14 @@ report. Everything runs locally; the video never leaves the machine.
 | training data | synthetic mIoU | **real mIoU** | real pupil IoU |
 |---|---|---|---|
 | synthetic only | 0.928 | **0.237** | 0.382 |
-| synthetic + weakly-labeled real | 0.926 | **0.722** | 0.848 |
+| synthetic + weakly-labeled real | 0.925 | **0.697** | 0.651 |
+
+Pupil IoU is *lower* than an earlier build (0.848) on purpose: the weak labels
+were found to oversize the pupil by 1.6× in diameter, and IoU on a correctly
+small target is harsher than on an oversized blob. The corrected labels are
+what let photorefraction use each subject's measured pupil instead of a
+population constant — 100% of predictions now fall in the physiological band,
+versus 0% before.
 
 **Test-retest repeatability** — the validation half that needs no clinician,
 and the one directly comparable to published tests:
@@ -112,7 +119,7 @@ order of magnitude:
 | alignment, single frame | 0.60 PD | **5.35 PD** |
 | alignment, 40-frame median | — | **1.09 PD** |
 | photorefraction | 0.027 D | **0.187 D** |
-| segmentation (mIoU) | 0.928 | **0.722** |
+| segmentation (mIoU) | 0.926 | **0.697** |
 
 **Alignment accuracy on real eye images** — a controlled glint injected at a
 known decentration onto real eye crops gives real appearance with exact ground
