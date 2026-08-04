@@ -1,0 +1,48 @@
+import cv2
+import numpy as np
+import pytest
+
+from visionscreen.analyzer import analyze_session
+from visionscreen.protocol import ScreenEvent, SegmentMeta, SessionMeta
+
+
+@pytest.fixture(scope="module")
+def face_video(tmp_path_factory):
+    pytest.importorskip("skimage")
+    from skimage import data
+
+    path = tmp_path_factory.mktemp("vid") / "face.avi"
+    frame = cv2.resize(data.astronaut()[:, :, ::-1].copy(), (640, 480))
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"MJPG"), 10, (640, 480))
+    for _ in range(20):
+        writer.write(frame)
+    writer.release()
+    return path
+
+
+def make_meta(n_trials: int = 16) -> SessionMeta:
+    events = [
+        ScreenEvent(ts=float(i), kind="trial",
+                    payload={"logmar": 0.4, "shown": "up", "answered": "up"})
+        for i in range(n_trials)
+    ]
+    return SessionMeta(
+        session_id="t1", px_per_cm=37.8, distance_cm=50.0, fps=10.0,
+        segments=[SegmentMeta(test_id="acuity", start_ts=0.0, end_ts=2.0, events=events)],
+    )
+
+
+def test_analyze_session_produces_both_findings(face_video):
+    findings = analyze_session(face_video, make_meta())
+    modules = {f.module: f for f in findings}
+    assert set(modules) == {"acuity", "behavioral"}
+    assert modules["acuity"].tier == "measured"
+    assert modules["behavioral"].tier in ("measured", "weak-signal")
+
+
+def test_missing_acuity_segment_is_inconclusive(face_video):
+    meta = SessionMeta(session_id="t2", px_per_cm=37.8, distance_cm=50.0,
+                       fps=10.0, segments=[])
+    findings = analyze_session(face_video, meta)
+    acuity = next(f for f in findings if f.module == "acuity")
+    assert acuity.tier == "inconclusive"
