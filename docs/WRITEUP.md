@@ -142,7 +142,7 @@ so near-perpendicular axes are weakly constrained (§4).
 example images (strabismus, esotropia/exotropia, red reflex, leukocoria,
 Hirschberg test) from Wikimedia Commons with full provenance
 (`data/real/commons/provenance.json`: title, URL, license, artist, search
-term). Current snapshot: 11 images. These are a qualitative reality-check
+term). Current snapshot: 13 images (fetcher is resumable; Wikimedia rate limits politely respected). These are a qualitative reality-check
 set, not training data.
 
 ## 6. Reproducing
