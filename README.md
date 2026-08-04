@@ -74,7 +74,24 @@ report. Everything runs locally; the video never leaves the machine.
 | Astigmatism axis | 4.1° mean error |
 | Photorefraction | 0.027 D mean spherical-equivalent error |
 
+**Real-patient check** — the production alignment path run over photographs of
+clinically categorised strabismus patients plus presumed-normal faces:
+
+| | before artifact guards | after |
+|---|---|---|
+| specificity | 0.09 | **0.64** |
+| median deviation on normal faces | 61 PD | **21 PD** |
+
+The first column is the point: on the same code that scored 0.60 PD error on
+synthetic images, real uncontrolled photographs produced readings up to 163
+prism diopters — beyond any human strabismus — because window and lamp
+reflections were being read as corneal catchlights. That failure drove two
+guards (a physiological ceiling and a frame-stability requirement) and is the
+clearest evidence in the project for why the controlled-glint video protocol
+is not optional.
+
 Full methods, limitations, and citations: [`docs/WRITEUP.md`](docs/WRITEUP.md).
+Clinical study design and analysis kit: [`docs/VALIDATION_PROTOCOL.md`](docs/VALIDATION_PROTOCOL.md).
 
 ---
 
