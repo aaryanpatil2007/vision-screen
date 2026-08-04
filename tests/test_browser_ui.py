@@ -208,3 +208,54 @@ def test_color_plate_is_luminance_isochromatic(server, browser_ctx):
     }""")
     assert stats["redN"] > 500 and stats["greenN"] > 500, stats
     assert abs(stats["redLuma"] - stats["greenLuma"]) < 8, stats
+
+
+def test_rds_renders_and_catch_trial_has_no_disparity(server, browser_ctx):
+    """The stereogram must draw dots, and a zero-disparity catch trial must
+    contain no offset between the two half-images."""
+    page, _ = _page(browser_ctx, server)
+    out = page.evaluate("""async () => {
+        const s = await import('/static/js/stimuli.js');
+        const mk = () => { const c = document.createElement('canvas');
+                           c.width = c.height = 200; return c; };
+        const inked = (c) => {
+            const d = c.getContext('2d').getImageData(0,0,200,200).data;
+            let n = 0;
+            for (let i = 0; i < d.length; i += 4) if (d[i] + d[i+1] + d[i+2] > 30) n++;
+            return n / (200*200);
+        };
+        // same seed, disparity vs catch -> catch must be identical red/cyan overlay
+        let c1 = mk();
+        s.drawRDS(c1.getContext('2d'),
+                  {size:200, disparityPx:6, quadrant:1, rng: s.mulberry32(4)});
+        let c2 = mk();
+        s.drawRDS(c2.getContext('2d'),
+                  {size:200, disparityPx:0, quadrant:1, rng: s.mulberry32(4)});
+        const d2 = c2.getContext('2d').getImageData(0,0,200,200).data;
+        // in a catch trial every dot's red and cyan copies coincide exactly
+        let mismatched = 0;
+        for (let i = 0; i < d2.length; i += 4) {
+            const red = d2[i] > 40, cyan = d2[i+1] > 20;
+            if (red !== cyan) mismatched++;
+        }
+        return { inked1: inked(c1), inked2: inked(c2),
+                 catchMismatchFrac: mismatched / (200*200) };
+    }""")
+    assert out["inked1"] > 0.05, out
+    assert out["inked2"] > 0.05, out
+    assert out["catchMismatchFrac"] < 0.01, out   # no monocular offset to read
+
+
+def test_disparity_math_matches_server(server, browser_ctx):
+    from visionscreen.modules.stereo import disparity_arcsec
+
+    page, _ = _page(browser_ctx, server)
+    for d_mm, D_mm in ((0.25, 600.0), (0.055, 400.0), (0.1814, 500.0)):
+        js = page.evaluate(
+            """async ([d, D]) => {
+                const s = await import('/static/js/stimuli.js');
+                return s.disparityArcsec(d, D);
+            }""",
+            [d_mm, D_mm],
+        )
+        assert js == pytest.approx(disparity_arcsec(d_mm, D_mm), rel=1e-9)

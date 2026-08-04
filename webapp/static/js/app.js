@@ -10,6 +10,7 @@ import { EyeTracker } from "./tracker.js";
 import {
   DIRS, SLOAN, letterHeightPx, drawTumblingE, contrastToGray,
   drawAstigmaticDial, drawAmsler, drawColorPlate, mulberry32,
+  drawRDS, disparityArcsec,
 } from "./stimuli.js";
 
 const PLATES = [
@@ -34,6 +35,7 @@ const STEPS = [
   { id: "astigmatism", label: "Astigmatism" },
   { id: "color_vision", label: "Color" },
   { id: "amsler", label: "Amsler" },
+  { id: "stereo", label: "Depth" },
   { id: "motility", label: "Tracking" },
   { id: "pupil", label: "Pupils" },
   { id: "photoref", label: "Refraction" },
@@ -369,6 +371,69 @@ class App {
     this.hideStage();
   }
 
+  async runStereo() {
+    this.setStep("stereo");
+    const pitchMm = 10 / this.session.pxPerCm;
+    const floorArcsec = disparityArcsec(pitchMm, this.session.distanceCm * 10);
+    await this.prompt("Depth perception",
+      `Put on the red-cyan glasses (red over your LEFT eye). A square of dots will
+       appear; one quarter of it floats in front of the rest. Click the quarter
+       that stands out — guess if you're not sure. Some patterns have no depth
+       at all, which is intentional.`);
+
+    const seg = this.session.open("stereo");
+    this.session.log(seg, "stereo_config", {
+      px_per_cm: this.session.pxPerCm,
+      display_floor_arcsec: floorArcsec,
+    });
+
+    // ladder in pixel disparity; a catch trial (0 px) every fourth presentation
+    const ladder = [12, 8, 6, 4, 3, 2, 1.5, 1];
+    const order = [];
+    ladder.forEach((d, i) => {
+      order.push({ disparity: d, catch: false });
+      order.push({ disparity: d, catch: false });
+      if (i % 2 === 1) order.push({ disparity: 0, catch: true });
+    });
+
+    for (const item of order) {
+      const quadrant = Math.floor(this.rng() * 4);
+      const st = this.stage(`
+        <div class="instruction">Click the quarter that floats in front.</div>
+        <canvas id="rds" width="520" height="520" style="max-width:76vmin;max-height:76vmin"></canvas>
+        <div class="sub">Guess if unsure — some patterns genuinely have no depth.</div>`);
+      const c = st.querySelector("#rds");
+      const g = c.getContext("2d");
+      // re-randomize dots every frame: kills any static monocular pattern
+      let raf, frames = 0;
+      const animate = () => {
+        drawRDS(g, { size: c.width, disparityPx: item.disparity, quadrant,
+                     dotPx: 3, density: 0.35, rng: mulberry32((frames++ * 2654435761) >>> 0) });
+        raf = requestAnimationFrame(animate);
+      };
+      animate();
+
+      const answer = await new Promise((resolve) => {
+        c.addEventListener("click", (ev) => {
+          const r = c.getBoundingClientRect();
+          const qx = ev.clientX - r.left < r.width / 2 ? 0 : 1;
+          const qy = ev.clientY - r.top < r.height / 2 ? 0 : 1;
+          resolve(qy * 2 + qx);
+        }, { once: true });
+      });
+      cancelAnimationFrame(raf);
+
+      const arcsec = disparityArcsec(item.disparity * pitchMm,
+                                     this.session.distanceCm * 10);
+      this.session.log(seg, item.catch ? "catch" : "trial", {
+        arcsec, disparity_px: item.disparity,
+        shown: quadrant, answered: answer, correct: answer === quadrant,
+      });
+    }
+    this.session.close(seg);
+    this.hideStage();
+  }
+
   async runMotility() {
     this.setStep("motility");
     await this.prompt("Eye tracking",
@@ -498,6 +563,7 @@ class App {
     await this.runAstigmatism();
     await this.runColor();
     await this.runAmsler();
+    await this.runStereo();
     await this.runMotility();
     await this.runPupil();
     await this.runPhotoref();

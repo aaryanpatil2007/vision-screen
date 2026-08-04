@@ -144,3 +144,37 @@ def test_viewing_distance_reported(face_video):
     assert d.metrics["median_cm"] > 0
     # a static video cannot drift, so no movement flag should be raised
     assert "viewing distance changed during the test" not in d.metrics["flags"]
+
+
+def test_stereo_segment_scored(face_video):
+    events = [ScreenEvent(ts=0.0, kind="stereo_config",
+                          payload={"px_per_cm": 37.8, "display_floor_arcsec": 74.8})]
+    for i, arcsec in enumerate((600, 600, 300, 300, 150, 150)):
+        events.append(ScreenEvent(ts=0.1 * i, kind="trial",
+                                  payload={"arcsec": arcsec, "shown": 1, "answered": 1,
+                                           "correct": True}))
+    events += [ScreenEvent(ts=1.0 + 0.1 * i, kind="catch",
+                           payload={"shown": 2, "answered": 0, "correct": False})
+               for i in range(3)]
+    meta = make_meta([SegmentMeta("stereo", 0.0, 2.2, events)])
+    m = modules(analyze_session(face_video, meta))
+    assert "stereo" in m
+    assert m["stereo"].tier == "weak-signal"
+    assert m["stereo"].metrics["threshold_arcsec"] == pytest.approx(150, abs=1)
+
+
+def test_stereo_voided_when_catch_trials_passed(face_video):
+    """Passing zero-disparity catches means a non-stereo cue was used."""
+    events = [ScreenEvent(ts=0.0, kind="stereo_config",
+                          payload={"display_floor_arcsec": 74.8})]
+    events += [ScreenEvent(ts=0.1 * i, kind="trial",
+                           payload={"arcsec": a, "shown": 1, "answered": 1,
+                                    "correct": True})
+               for i, a in enumerate((600, 300, 150, 80, 40, 20))]
+    events += [ScreenEvent(ts=1.5 + 0.1 * i, kind="catch",
+                           payload={"shown": 1, "answered": 1, "correct": True})
+               for i in range(3)]
+    meta = make_meta([SegmentMeta("stereo", 0.0, 2.2, events)])
+    m = modules(analyze_session(face_video, meta))
+    assert m["stereo"].tier == "inconclusive"
+    assert "threshold_arcsec" not in m["stereo"].metrics

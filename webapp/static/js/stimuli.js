@@ -167,3 +167,46 @@ export function mulberry32(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+/**
+ * Dynamic random-dot stereogram, red/cyan anaglyph.
+ *
+ * Dots are re-randomized every frame so no monocular pattern persists, and the
+ * disparate region is a shape whose position is the 4AFC answer. A catch trial
+ * (disparityPx = 0) contains no depth information at all: a subject who
+ * "sees" the shape anyway is reading an artifact, and the scorer voids the run.
+ *
+ * Anaglyph note: the red channel carries ~21% of white luminance and cyan ~79%,
+ * so the two eyes get very different light. Both half-images are therefore
+ * drawn at matched luminance rather than full-intensity red/cyan.
+ */
+export function drawRDS(ctx, opts) {
+  const { size, disparityPx, quadrant, dotPx = 3, density = 0.35, rng } = opts;
+  const g = ctx;
+  g.fillStyle = "#000";
+  g.fillRect(0, 0, size, size);
+  g.globalCompositeOperation = "lighter";
+
+  const half = size / 2;
+  const region = { 0: [0, 0], 1: [half, 0], 2: [0, half], 3: [half, half] }[quadrant];
+  const inRegion = (x, y) =>
+    x >= region[0] && x < region[0] + half && y >= region[1] && y < region[1] + half;
+
+  const n = Math.round((size * size * density) / (dotPx * dotPx));
+  const shift = disparityPx / 2;
+  for (let i = 0; i < n; i++) {
+    const x = rng() * size, y = rng() * size;
+    const d = inRegion(x, y) ? shift : 0;
+    // luminance-matched half-images: dim cyan against brighter red
+    g.fillStyle = "rgb(210,0,0)";
+    g.fillRect(Math.round(x - d), Math.round(y), dotPx, dotPx);
+    g.fillStyle = "rgb(0,57,57)";
+    g.fillRect(Math.round(x + d), Math.round(y), dotPx, dotPx);
+  }
+  g.globalCompositeOperation = "source-over";
+}
+
+/** Screen disparity in arcsec: 206265 * d / D. Matches the server module. */
+export function disparityArcsec(pixelDisparityMm, distanceMm) {
+  return distanceMm > 0 ? (206265 * pixelDisparityMm) / distanceMm : 0;
+}

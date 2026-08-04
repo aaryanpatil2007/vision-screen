@@ -30,6 +30,7 @@ from visionscreen.modules.contrast import score_contrast
 from visionscreen.modules.motility import score_motility
 from visionscreen.modules.photoref import measure_reflex, score_photoref
 from visionscreen.modules.pupillometry import PupilTrace, score_pupillometry
+from visionscreen.modules.stereo import score_stereo
 from visionscreen.perception.distance import (
     acuity_bias_logmar,
     distance_from_interocular,
@@ -329,6 +330,18 @@ def analyze_session(video_path: Path, meta: SessionMeta,
         marks = [ev.payload for ev in s.events if ev.kind == "amsler"]
         distortions = [m for e in marks for m in e.get("marks", [])]
         findings.append(score_amsler(distortions, [], len(marks), valid_fraction))
+
+    # ---- stereo ----
+    s = meta.segment("stereo")
+    if s is not None:
+        trials = [{"arcsec": ev.payload["arcsec"], "correct": ev.payload["correct"]}
+                  for ev in s.events if ev.kind == "trial"]
+        catch = [{"correct": ev.payload["correct"]}
+                 for ev in s.events if ev.kind == "catch"]
+        floor = next((ev.payload.get("display_floor_arcsec") for ev in s.events
+                      if ev.kind == "stereo_config"), None)
+        findings.append(score_stereo(trials, catch, valid_fraction,
+                                     display_floor_arcsec=floor))
 
     # ---- motility + alignment (share the pursuit segment) ----
     if seg_motility is not None:
