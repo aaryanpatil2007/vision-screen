@@ -102,3 +102,43 @@ def test_small_physiological_offset_not_flagged():
     dec = (2.0 / 18.0, 0.0)    # ~2 PD, within normal phoria/kappa variation
     f = score_alignment(frames((0.0, 0.0), dec), None, valid_fraction=0.9)
     assert "possible eye misalignment" not in f.metrics["flags"]
+
+
+def test_implausible_deviation_rejected_not_reported():
+    """Real-photograph validation produced readings up to 163 PD on normal
+    faces — stray window/lamp reflections, not measurements."""
+    huge = (163.0 / 18.0, 0.0)
+    f = score_alignment(frames((0.0, 0.0), huge, n=30), None, valid_fraction=0.9)
+    assert f.tier == "inconclusive"
+    assert "deviation_pd" not in f.metrics
+    assert f.metrics["rejected_reason"] == "implausible magnitude"
+    assert f.retakes
+
+
+def test_unstable_reflex_across_frames_rejected():
+    """A real deviation is stable; uncorrelated stray highlights jitter."""
+    import numpy as _np
+    rng = _np.random.default_rng(0)
+    noisy = [
+        AlignmentFrame((0.0, 0.0), (float(rng.normal(0, 1.2)), float(rng.normal(0, 1.2))))
+        for _ in range(30)
+    ]
+    f = score_alignment(noisy, None, valid_fraction=0.9)
+    assert f.tier == "inconclusive"
+    assert f.metrics["rejected_reason"] == "unstable across frames"
+
+
+def test_stable_real_deviation_still_reported():
+    """The guards must not suppress a genuine, consistent deviation."""
+    f = score_alignment(frames((0.0, 0.0), (20.0 / 18.0, 0.0), n=30), None,
+                        valid_fraction=0.9)
+    assert f.tier == "measured"
+    assert "possible eye misalignment" in f.metrics["flags"]
+    assert f.metrics["deviation_pd"] == pytest.approx(20.0, abs=1.0)
+
+
+def test_single_frame_magnitude_is_provisional():
+    f = score_alignment(frames((0.0, 0.0), (20.0 / 18.0, 0.0), n=1), None,
+                        valid_fraction=0.9)
+    assert f.tier == "weak-signal"
+    assert "provisional" in f.summary

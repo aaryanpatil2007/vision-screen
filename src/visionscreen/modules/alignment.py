@@ -20,6 +20,19 @@ ASYMMETRY_WEAK_MM = 5.0 / HIRSCHBERG_PD_PER_MM     # ≈0.28 mm
 CONJUGACY_FLAG = 0.8
 MIN_PURSUIT_SAMPLES = 20
 
+# Physiological ceiling. Human horizontal deviations essentially never exceed
+# ~90 PD, and validation on real uncontrolled photographs produced readings up
+# to 163 PD on normally-aligned faces — those are stray specular highlights
+# (windows, lamps, spectacle glare) being mistaken for the corneal catchlight,
+# not measurements. Above this bound the pair is not a usable Hirschberg
+# observation, so no magnitude is reported.
+MAX_PLAUSIBLE_PD = 60.0
+
+# A true deviation is stable across frames; uncorrelated stray highlights
+# jitter. Require enough agreement before quoting a number.
+MIN_FRAMES_FOR_MAGNITUDE = 5
+MAX_ASYMMETRY_DISPERSION_MM = 0.45
+
 
 @dataclass(frozen=True)
 class AlignmentFrame:
@@ -124,6 +137,45 @@ def score_alignment(
     asym_mm = float(np.hypot(*asym_vec))
     deviation_pd = round(asym_mm * HIRSCHBERG_PD_PER_MM, 1)
 
+    # --- artifact rejection, learned from real-photograph validation ---
+    per_frame_asym = [
+        float(np.hypot(f.dec_left_mm[0] - f.dec_right_mm[0],
+                       f.dec_left_mm[1] - f.dec_right_mm[1]))
+        for f in per_frame
+    ]
+    dispersion = (
+        statistics.pstdev(per_frame_asym) if len(per_frame_asym) > 1 else 0.0
+    )
+    implausible = deviation_pd > MAX_PLAUSIBLE_PD
+    unstable = (
+        len(per_frame) >= MIN_FRAMES_FOR_MAGNITUDE
+        and dispersion > MAX_ASYMMETRY_DISPERSION_MM
+    )
+    too_few = len(per_frame) < MIN_FRAMES_FOR_MAGNITUDE
+
+    if implausible or unstable:
+        return Finding(
+            module="alignment",
+            summary=(
+                "The bright spots used to judge alignment were not consistent "
+                "between the eyes or between frames, which happens when a lamp, "
+                "window or spectacle lens reflects into the camera. No alignment "
+                "measurement can be trusted from this recording."
+            ),
+            tier="inconclusive",
+            metrics={
+                "flags": [],
+                "rejected_reason": "implausible magnitude" if implausible
+                                   else "unstable across frames",
+                "frames": len(per_frame),
+            },
+            retakes=[
+                "Repeat in a dim room so the on-screen target is the brightest "
+                "light on your face.",
+                "Remove glasses if you can — lens reflections imitate the corneal glint.",
+            ],
+        )
+
     flags: list[str] = []
     notes: list[str] = []
     if asym_mm >= ASYMMETRY_FLAG_MM:
@@ -148,7 +200,20 @@ def score_alignment(
         "flags": flags,
         "deviation_pd": deviation_pd,
         "asymmetry_mm": round(asym_mm, 2),
+        "frames": len(per_frame),
     }
+    if len(per_frame) > 1:
+        metrics["asymmetry_dispersion_mm"] = round(dispersion, 3)
     if pursuit is not None:
         metrics["conjugacy"] = round(pursuit.conjugacy, 3)
+
+    # A magnitude from one or two frames is not a measurement, whatever the
+    # capture quality: a single stray highlight cannot be distinguished from a
+    # real deviation without frame-to-frame agreement.
+    if too_few:
+        tier = "weak-signal"
+        summary += (
+            f" Based on only {len(per_frame)} usable frame"
+            f"{'s' if len(per_frame) != 1 else ''}, so the magnitude is provisional."
+        )
     return Finding(module="alignment", summary=summary, tier=tier, metrics=metrics)
