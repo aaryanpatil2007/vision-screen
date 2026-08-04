@@ -82,7 +82,8 @@ def run(n_subjects: int = 300, seed: int = 17) -> dict:
         true_acuity = float(rng.uniform(-0.1, 1.0))
         a1 = score_trials(simulate_acuity(true_acuity, lapse, rng))
         a2 = score_trials(simulate_acuity(true_acuity, lapse, rng))
-        v1, v2 = a1.metrics.get("logmar"), a2.metrics.get("logmar")
+        v1 = a1.metrics.get("logmar_raw_tumbling_e")
+        v2 = a2.metrics.get("logmar_raw_tumbling_e")
         if v1 is not None and v2 is not None:
             acuity_diffs.append(v1 - v2)
             # would the two sessions disagree about referral (>0.3 logMAR)?

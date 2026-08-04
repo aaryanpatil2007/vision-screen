@@ -177,8 +177,26 @@ def score_trials(trials: list[dict], display_floor: float | None = None) -> Find
     else:
         summary = f"Estimated acuity {threshold:.2f} logMAR"
 
-    # A tumbling-E threshold sits ~0.15 logMAR conservative against an ETDRS
-    # letter chart; report the equivalent rather than let people compare raw.
-    metrics["etdrs_equivalent_logmar"] = round(threshold + ETDRS_OFFSET_LOGMAR, 2)
+    # Report the CHART-EQUIVALENT value as the headline. A raw tumbling-E
+    # threshold sits ~0.15 logMAR conservative against ETDRS Sloan letters, so
+    # publishing it as "your acuity" would carry a systematic 1.5-line bias
+    # against the chart everyone actually compares to — the largest single term
+    # in the error budget, and correctable exactly because it is known.
+    raw = threshold
+    chart_equivalent = threshold + ETDRS_OFFSET_LOGMAR
+    metrics["logmar"] = round(chart_equivalent, 2)
+    metrics["logmar_raw_tumbling_e"] = round(raw, 2)
+    metrics["optotype_correction_logmar"] = ETDRS_OFFSET_LOGMAR
+
+    summary = summary.replace(f"{raw:.2f} logMAR", f"{chart_equivalent:.2f} logMAR")
+    if not display_limited and not (raw <= floor + 1e-9 and raw <= -0.25):
+        summary = (
+            f"Estimated acuity {chart_equivalent:.2f} logMAR "
+            f"({snellen_hint(chart_equivalent)}), adjusted to letter-chart scale."
+        )
 
     return Finding(module="acuity", summary=summary, tier=tier, metrics=metrics)
+
+
+def snellen_hint(logmar: float) -> str:
+    return f"20/{round(20 * (10 ** logmar))}"

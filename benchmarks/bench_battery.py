@@ -125,8 +125,12 @@ def run(n_patients: int = 120, seed: int = 11) -> dict:
         # --- acuity ---
         true_acuity = float(rng.uniform(-0.1, 1.0))
         f = score_trials(simulate_acuity(true_acuity, lapse, rng))
-        if f.metrics.get("logmar") is not None:
-            acuity_err.append(abs(f.metrics["logmar"] - true_acuity))
+        # the virtual observer's threshold is defined on the tumbling-E scale
+        # the staircase presents, so compare against the raw value; the chart
+        # correction is a separate, exactly-known offset
+        est = f.metrics.get("logmar_raw_tumbling_e")
+        if est is not None:
+            acuity_err.append(abs(est - true_acuity))
 
         # --- contrast ---
         true_cs = float(rng.uniform(0.6, 2.1))

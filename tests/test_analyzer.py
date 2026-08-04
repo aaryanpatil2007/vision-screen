@@ -53,9 +53,11 @@ def test_monocular_acuity_reported_separately(face_video):
         SegmentMeta("acuity_left", 1.6, 2.3, acuity_events(16, 0.5)),
     ])
     m = modules(analyze_session(face_video, meta))
-    assert m["Acuity (both eyes)"].metrics["logmar"] == 0.1
-    assert m["Acuity (right eye)"].metrics["logmar"] == 0.3
-    assert m["Acuity (left eye)"].metrics["logmar"] == 0.5
+    # headline values carry the tumbling-E -> letter-chart correction
+    assert m["Acuity (both eyes)"].metrics["logmar_raw_tumbling_e"] == 0.1
+    assert m["Acuity (right eye)"].metrics["logmar_raw_tumbling_e"] == 0.3
+    assert m["Acuity (left eye)"].metrics["logmar_raw_tumbling_e"] == 0.5
+    assert m["Acuity (both eyes)"].metrics["logmar"] == pytest.approx(-0.05, abs=0.01)
 
 
 def test_contrast_segment_scored(face_video):

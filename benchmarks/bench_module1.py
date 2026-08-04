@@ -32,7 +32,7 @@ def run_benchmark(n_observers: int = 50, seed: int = 7) -> dict:
         true_logmar = float(rng.uniform(-0.1, 1.0))
         trials = simulate_observer(true_logmar, lapse=0.05, rng=rng)
         finding = score_trials(trials)
-        est = finding.metrics.get("logmar")
+        est = finding.metrics.get("logmar_raw_tumbling_e")
         rows.append({"true": round(true_logmar, 2), "est": est,
                      "tier": finding.tier,
                      "abs_error": None if est is None else abs(est - true_logmar)})

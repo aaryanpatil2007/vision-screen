@@ -45,7 +45,10 @@ def test_floor_reported_as_at_or_better():
     trials = make_trials(20, logmar=-0.3)  # perfect run down at the floor
     f = score_trials(trials)
     assert "at or better than" in f.summary
-    assert f.metrics["logmar"] == -0.3
+    # raw threshold sits at the staircase floor; the headline carries the
+    # chart correction
+    assert f.metrics["logmar_raw_tumbling_e"] == -0.3
+    assert f.metrics["logmar"] == pytest.approx(-0.45, abs=0.01)
 
 
 def test_score_trials_tiers():
@@ -95,11 +98,15 @@ def test_display_limited_acuity_reported_as_a_bound():
     assert f.metrics["display_floor_logmar"] == -0.12
 
 
-def test_etdrs_equivalent_reported():
-    """Tumbling E reads ~0.15 logMAR conservative vs an ETDRS letter chart."""
+def test_chart_equivalent_is_the_headline_number():
+    """Tumbling E reads ~0.15 logMAR conservative vs an ETDRS letter chart, so
+    publishing the raw value would carry a systematic 1.5-line bias against the
+    chart people actually compare to. The corrected value is the headline."""
     f = score_trials(make_trials(20, logmar=0.30))
-    assert f.metrics["logmar"] == 0.3
-    assert f.metrics["etdrs_equivalent_logmar"] == pytest.approx(0.15, abs=0.01)
+    assert f.metrics["logmar"] == pytest.approx(0.15, abs=0.01)
+    assert f.metrics["logmar_raw_tumbling_e"] == 0.3
+    assert f.metrics["optotype_correction_logmar"] == pytest.approx(-0.15)
+    assert "letter-chart scale" in f.summary
 
 
 def test_step_halving_preserves_convergence_criterion():
