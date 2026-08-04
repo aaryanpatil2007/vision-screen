@@ -68,10 +68,23 @@ and the one directly comparable to published tests:
 | test | acuity CoR (logMAR) |
 |---|---|
 | Peek Acuity | 0.033 |
+| **VisionScreen (Sloan/ETDRS optotype)** | **0.109** |
 | ETDRS chart, normals | 0.11 |
 | DigiVis | 0.12 |
-| **VisionScreen** | **0.137** |
+| VisionScreen (tumbling E) | 0.130 |
 | ETDRS chart with 1.00 D blur | 0.25 |
+
+**Predicted agreement with a chart** — an error budget with every term
+measured or cited (`python -m visionscreen.error_budget`):
+
+| optotype | bias | 95% LoA |
+|---|---|---|
+| **Sloan (default)** | **+0.004** | **−0.079 to +0.087** |
+| tumbling E, corrected | +0.004 | −0.137 to +0.145 |
+
+A budget predicts; it does not validate. It cannot reveal a bias nobody
+enumerated — that needs the clinical study in
+[`docs/VALIDATION_PROTOCOL.md`](docs/VALIDATION_PROTOCOL.md), which is unrun.
 
 Contrast CoR 0.034 log CS, alignment 0.65 PD. The referral call (acuity worse
 than 0.3 logMAR) flips between repeat sessions on 4.7% of subjects — down from
