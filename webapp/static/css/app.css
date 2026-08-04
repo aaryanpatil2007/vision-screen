@@ -114,7 +114,11 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; letter-spacing: -0.0
   content: ""; width: 2.2rem; height: 1px; flex: none;
   background: linear-gradient(90deg, transparent, var(--amber-soft));
 }
-@media (max-width: 1180px) { .eyebrow { white-space: normal; } }
+@media (max-width: 1180px) {
+  /* let it wrap, but drop the rule so it never floats free of the text */
+  .eyebrow { white-space: normal; }
+  .eyebrow::before { display: none; }
+}
 
 .lede {
   font-size: 1.18rem; line-height: 1.62; color: var(--muted);
