@@ -11,8 +11,12 @@ from visionscreen.synth.eyes2d import HVID_MM
 # Hirschberg ratio: ~18 prism diopters of deviation per mm of corneal-reflex
 # decentration (clinical range 15-22 PD/mm; see writeup for citations).
 HIRSCHBERG_PD_PER_MM = 18.0
-ASYMMETRY_FLAG_MM = 1.0     # ≈18 PD
-ASYMMETRY_WEAK_MM = 0.5     # ≈9 PD
+# Clinically significant strabismus starts around 10 prism diopters, and our
+# measurement error is ~0.6 PD (bench_module2), so flagging at 10 PD costs
+# almost nothing in false positives while catching the 10-18 PD deviations an
+# 18 PD threshold silently missed (battery benchmark: sensitivity 0.73 -> 0.99).
+ASYMMETRY_FLAG_MM = 10.0 / HIRSCHBERG_PD_PER_MM    # ≈0.56 mm
+ASYMMETRY_WEAK_MM = 5.0 / HIRSCHBERG_PD_PER_MM     # ≈0.28 mm
 CONJUGACY_FLAG = 0.8
 MIN_PURSUIT_SAMPLES = 20
 

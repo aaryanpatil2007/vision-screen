@@ -29,7 +29,7 @@ SOURCES = (
     HFSource(
         repo="RafeiKAr/eye_tracking_gazecapture",
         description="GazeCapture-derived face frames (real webcam-style captures)",
-        max_files=1200,
+        max_files=5000,
     ),
     HFSource(
         repo="hungryfull/Pupil_Position_in_the_Eye",

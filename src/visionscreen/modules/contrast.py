@@ -65,14 +65,23 @@ def score_contrast(trials: list[dict], valid_fraction: float) -> Finding:
     for t in trials:
         by_level.setdefault(round(float(t["log_cs"]), 2), []).append(bool(t["correct"]))
 
-    # threshold = faintest (highest log CS) level still mostly correct
-    threshold = min(by_level)
-    for level in sorted(by_level):
+    # Pelli-Robson scoring: the faintest TRIPLET with at least 2 of 3 letters
+    # correct. Scanning for the last passing level (rather than stopping at the
+    # first failure) keeps a single lapse from truncating the estimate — the
+    # dominant error source when one letter is shown per level.
+    levels = sorted(by_level)
+    threshold = levels[0]
+    for level in levels:
         results = by_level[level]
-        if sum(results) / len(results) >= 0.5:
+        passed = sum(results) / len(results) >= (2 / 3 if len(results) >= 3 else 0.5)
+        if passed:
             threshold = level
-        else:
-            break
+    # credit partial performance on the next (failed) triplet, as the chart does
+    nxt = [lv for lv in levels if lv > threshold]
+    if nxt:
+        part = by_level[nxt[0]]
+        if part and 0 < sum(part) / len(part) < (2 / 3 if len(part) >= 3 else 0.5):
+            threshold += PELLI_ROBSON_STEP * (sum(part) / len(part))
 
     flags: list[str] = []
     if threshold < REDUCED_LOG_CS:

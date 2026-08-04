@@ -224,22 +224,29 @@ class App {
       `Letters will fade toward the background. Type the letter you see, or press
        SPACE if you cannot read it. Sit at your normal distance and keep screen
        brightness at maximum.`);
+    // Pelli-Robson protocol: triplets of three letters at each contrast level,
+    // 0.15 log-unit steps, stop when a whole triplet is failed.
     const seg = this.session.open("contrast");
-    let misses = 0;
-    for (let i = 0; i < 16 && misses < 2; i++) {
+    const keys = [...SLOAN.map((s) => s.toLowerCase()), " "];
+    for (let i = 0; i < 16; i++) {
       const logCS = +(0.15 * i).toFixed(2);
-      const letter = SLOAN[Math.floor(this.rng() * SLOAN.length)];
       const gray = contrastToGray(logCS);
-      this.stage(`
-        <div class="instruction">Type the letter you see — or press SPACE if you can't.</div>
-        <div style="font-size:19vh;font-weight:700;color:rgb(${gray},${gray},${gray});
-                    font-family:'Helvetica Neue',Arial,sans-serif">${letter}</div>
-        <div class="sub">contrast step ${i + 1}</div>`, { white: true });
-      const keys = [...SLOAN.map((s) => s.toLowerCase()), " "];
-      const ans = await this.waitKey(keys);
-      const correct = ans.toUpperCase() === letter;
-      this.session.log(seg, "trial", { log_cs: logCS, shown: letter, answered: ans.trim() || null, correct });
-      misses = correct ? 0 : misses + 1;
+      let correctInTriplet = 0;
+      for (let k = 0; k < 3; k++) {
+        const letter = SLOAN[Math.floor(this.rng() * SLOAN.length)];
+        this.stage(`
+          <div class="instruction">Type the letter you see — or press SPACE if you can't.</div>
+          <div style="font-size:19vh;font-weight:700;color:rgb(${gray},${gray},${gray});
+                      font-family:'Helvetica Neue',Arial,sans-serif">${letter}</div>
+          <div class="sub">triplet ${i + 1}, letter ${k + 1} of 3</div>`, { white: true });
+        const ans = await this.waitKey(keys);
+        const correct = ans.toUpperCase() === letter;
+        if (correct) correctInTriplet++;
+        this.session.log(seg, "trial", {
+          log_cs: logCS, shown: letter, answered: ans.trim() || null, correct,
+        });
+      }
+      if (correctInTriplet < 2) break;   // whole triplet failed — chart endpoint
     }
     this.session.close(seg);
     this.hideStage();

@@ -57,3 +57,32 @@ def test_too_few_trials_inconclusive():
     f = score_contrast([{"log_cs": 0.0, "correct": True}], valid_fraction=0.9)
     assert f.tier == "inconclusive"
     assert f.retakes
+
+
+def triplet_trials(true_log_cs: float, lapse_at: float | None = None) -> list[dict]:
+    """Three letters per level, stopping when a triplet fails — chart protocol."""
+    out = []
+    for i in range(16):
+        level = round(0.15 * i, 2)
+        n_ok = 0
+        for k in range(3):
+            correct = level <= true_log_cs
+            if lapse_at is not None and abs(level - lapse_at) < 1e-9 and k == 0:
+                correct = False          # a single lapse inside a passing triplet
+            out.append({"log_cs": level, "correct": correct})
+            n_ok += int(correct)
+        if n_ok < 2:
+            break
+    return out
+
+
+def test_triplet_scoring_recovers_threshold():
+    f = score_contrast(triplet_trials(1.65), valid_fraction=0.9)
+    assert f.metrics["log_cs"] == pytest.approx(1.65, abs=0.16)
+
+
+def test_single_lapse_does_not_truncate_estimate():
+    """One missed letter mid-run must not collapse the score (the old bug)."""
+    clean = score_contrast(triplet_trials(1.80), 0.9).metrics["log_cs"]
+    lapsed = score_contrast(triplet_trials(1.80, lapse_at=0.75), 0.9).metrics["log_cs"]
+    assert lapsed == pytest.approx(clean, abs=0.16)

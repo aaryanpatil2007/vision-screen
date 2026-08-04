@@ -88,3 +88,17 @@ def test_pursuit_only_when_reflex_missing():
     assert f.metrics["conjugacy"] > 0.99
     assert "poor pursuit conjugacy" not in f.metrics["flags"]
     assert "Hirschberg" in f.summary  # explains what was skipped and why
+
+
+def test_ten_pd_deviation_is_flagged():
+    """Clinically significant strabismus starts near 10 PD — it must not be missed."""
+    dec = (10.0 / 18.0, 0.0)   # 10 prism diopters of asymmetry
+    f = score_alignment(frames((0.0, 0.0), dec), None, valid_fraction=0.9)
+    assert "possible eye misalignment" in f.metrics["flags"]
+    assert f.metrics["deviation_pd"] == pytest.approx(10.0, abs=0.5)
+
+
+def test_small_physiological_offset_not_flagged():
+    dec = (2.0 / 18.0, 0.0)    # ~2 PD, within normal phoria/kappa variation
+    f = score_alignment(frames((0.0, 0.0), dec), None, valid_fraction=0.9)
+    assert "possible eye misalignment" not in f.metrics["flags"]
