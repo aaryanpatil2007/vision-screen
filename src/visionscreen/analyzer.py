@@ -13,6 +13,7 @@ from visionscreen.modules.alignment import (
     score_alignment,
 )
 from visionscreen.modules.behavioral import analyze_series
+from visionscreen.modules.photoref import measure_reflex, score_photoref
 from visionscreen.perception.eyes import eye_aspect_ratio, head_roll_deg, interocular_px
 from visionscreen.perception.iris import (
     detect_corneal_reflex,
@@ -24,8 +25,11 @@ from visionscreen.perception.landmarks import LandmarkExtractor
 from visionscreen.protocol import SegmentMeta, SessionMeta
 from visionscreen.quality.gates import check_frame
 from visionscreen.report import Finding
+from visionscreen.synth.eyes2d import HVID_MM
 
 _EYE_CORNERS = {"left": (33, 133), "right": (362, 263)}
+PHOTOREF_BRIGHTNESS = (5.0, 90.0)  # dim room required for the red reflex
+PUPIL_TO_IRIS_DIAMETER = 0.35  # dim-light pupil ≈ 4 mm on an 11.7 mm iris
 
 
 def _gaze_x(landmarks: np.ndarray, side: str) -> float | None:
@@ -57,6 +61,28 @@ def _eye_decentration(frame, landmarks, side: str) -> tuple[float, float] | None
     return reflex_decentration_mm(reflex_px, center_px, diameter)
 
 
+def _photoref_frame(frame, landmarks, e_m: float, d_m: float) -> tuple[float, float, float] | None:
+    """Measure one eye pair's reflex; returns the better-conditioned eye's estimate."""
+    h, w = frame.shape[:2]
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    results = []
+    for side in ("left", "right"):
+        center = tuple(iris_center(landmarks, side) * (w, h))
+        iris_d = iris_diameter_px(landmarks, side, w, h)
+        if iris_d < 8:
+            continue
+        px_per_m = iris_d / (HVID_MM / 1000.0)
+        pupil_r = PUPIL_TO_IRIS_DIAMETER * iris_d
+        est = measure_reflex(gray, center, pupil_r, e_m=e_m, d_m=d_m, px_per_m=px_per_m)
+        if est is not None:
+            results.append(est)
+    if not results:
+        return None
+    return results[0] if len(results) == 1 else tuple(
+        float(np.median([r[i] for r in results])) for i in range(3)
+    )
+
+
 def _dot_positions(segment: SegmentMeta, frame_ts: list[float]) -> list[float]:
     dots = [(ev.ts, ev.payload.get("x", 0.5)) for ev in segment.events if ev.kind == "dot"]
     if not dots:
@@ -79,6 +105,19 @@ def analyze_session(video_path: Path, meta: SessionMeta) -> list[Finding]:
     align_ts: list[float] = []
     align_total = 0
 
+    pr_seg = meta.segment("photoref")
+    pr_estimates: list[tuple[float, float, float]] = []
+    pr_dead = 0
+    pr_usable = 0
+    pr_total = 0
+    pr_cfg = {}
+    if pr_seg is not None:
+        for ev in pr_seg.events:
+            if ev.kind == "photoref_config":
+                pr_cfg = ev.payload
+    pr_e = float(pr_cfg.get("e_m", 0.005))
+    pr_d = float(pr_cfg.get("d_m", meta.distance_cm / 100.0))
+
     cap = cv2.VideoCapture(str(video_path))
     idx = 0
     try:
@@ -89,7 +128,6 @@ def analyze_session(video_path: Path, meta: SessionMeta) -> list[Finding]:
                     break
                 ts = idx / meta.fps if meta.fps else 0.0
                 idx += 1
-                total += 1
                 face = extractor.extract(frame)
                 gate_ok = check_frame(frame, face).passed
 
@@ -100,6 +138,24 @@ def analyze_session(video_path: Path, meta: SessionMeta) -> list[Finding]:
                 if in_align:
                     align_total += 1
 
+                in_pr = (
+                    pr_seg is not None and pr_seg.start_ts <= ts <= pr_seg.end_ts
+                )
+                if in_pr:
+                    pr_total += 1
+                    # photoref wants a DIM frame; run its own gate variant
+                    if face.ok and check_frame(
+                        frame, face, brightness_range=PHOTOREF_BRIGHTNESS
+                    ).passed:
+                        pr_usable += 1
+                        est = _photoref_frame(frame, face.landmarks, pr_e, pr_d)
+                        if est is None:
+                            pr_dead += 1
+                        else:
+                            pr_estimates.append(est)
+                    continue  # dim frames must not pollute the behavioral series
+
+                total += 1
                 if not gate_ok:
                     continue
                 lm = face.landmarks
@@ -144,4 +200,15 @@ def analyze_session(video_path: Path, meta: SessionMeta) -> list[Finding]:
             pursuit = pursuit_conjugacy(gaze_l, gaze_r, dot_xs)
         alignment = score_alignment(align_frames, pursuit, align_valid)
 
-    return [acuity, behavioral, alignment]
+    if pr_seg is None:
+        photoref = Finding(
+            module="photorefraction",
+            summary="Photorefraction test was not performed.",
+            tier="inconclusive",
+            retakes=["Run the dim-room flash test segment."],
+        )
+    else:
+        pr_valid = (pr_usable / pr_total) if pr_total else 0.0
+        photoref = score_photoref(pr_estimates, pr_dead, pr_valid)
+
+    return [acuity, behavioral, photoref, alignment]

@@ -11,6 +11,9 @@
   #video { width: 160px; position: fixed; right: 1rem; bottom: 1rem; }
   #dot { width: 24px; height: 24px; border-radius: 50%; background: #d33;
          position: fixed; top: 40%; left: 0; display: none; }
+  #flashband { position: fixed; top: 0; left: 0; right: 0; height: 15vh;
+               background: #fff; display: none; }
+  body.dark { background: #000; color: #666; }
 </style></head>
 <body>
 <h1>Vision Screening</h1>
@@ -19,6 +22,7 @@ matching the direction its prongs point. 20 letters total.</p>
 <button id="start">Start test</button>
 <div id="letter"></div>
 <div id="dot"></div>
+<div id="flashband"></div>
 <video id="video" autoplay muted></video>
 <script>
 const DIRS = ["up", "down", "left", "right"];
@@ -71,7 +75,7 @@ function runPursuit() {
   let lastLog = 0;
   function step(now) {
     const t = (now - t0) / 1000;
-    if (t >= PURSUIT_S) { dot.style.display = "none"; return finish(); }
+    if (t >= PURSUIT_S) { dot.style.display = "none"; return runPhotoref(); }
     const x = 0.5 + 0.4 * Math.sin(2 * Math.PI * t / 4);  // slow sweep
     dot.style.left = `${x * w}px`;
     if (now - lastLog > 100) {
@@ -85,6 +89,27 @@ function runPursuit() {
   requestAnimationFrame(step);
 }
 
+const PHOTOREF_S = 6;
+let photorefEvents = [], pursuitEnd = 0;
+
+function runPhotoref() {
+  pursuitEnd = (performance.now() - startTs) / 1000;
+  document.body.classList.add("dark");
+  document.querySelector("p").textContent =
+    "Dim the room lights. Look just below the camera and hold still.";
+  const band = document.getElementById("flashband");
+  photorefEvents.push({ ts: pursuitEnd, kind: "photoref_config",
+                        payload: { e_m: 0.005, d_m: DISTANCE_CM / 100 } });
+  setTimeout(() => {
+    band.style.display = "block";
+    setTimeout(() => {
+      band.style.display = "none";
+      document.body.classList.remove("dark");
+      finish();
+    }, PHOTOREF_S * 1000);
+  }, 2000);
+}
+
 async function finish() {
   recorder.stop();
   await new Promise(res => recorder.onstop = res);
@@ -94,7 +119,8 @@ async function finish() {
     distance_cm: DISTANCE_CM, fps: 30,
     segments: [
       { test_id: "acuity", start_ts: 0, end_ts: acuityEnd || endTs, events },
-      { test_id: "alignment", start_ts: acuityEnd || 0, end_ts: endTs, events: dotEvents },
+      { test_id: "alignment", start_ts: acuityEnd || 0, end_ts: pursuitEnd || endTs, events: dotEvents },
+      { test_id: "photoref", start_ts: pursuitEnd || 0, end_ts: endTs, events: photorefEvents },
     ],
   });
   const form = new FormData();

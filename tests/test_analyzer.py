@@ -35,7 +35,7 @@ def make_meta(n_trials: int = 16) -> SessionMeta:
 def test_analyze_session_produces_all_findings(face_video):
     findings = analyze_session(face_video, make_meta())
     modules = {f.module: f for f in findings}
-    assert set(modules) == {"acuity", "behavioral", "alignment"}
+    assert set(modules) == {"acuity", "behavioral", "alignment", "photorefraction"}
     assert modules["acuity"].tier == "measured"
     assert modules["behavioral"].tier in ("measured", "weak-signal")
     # no alignment segment in this meta → honestly inconclusive, with instructions
@@ -60,6 +60,20 @@ def test_alignment_segment_processed(face_video):
         assert alignment.retakes
     else:
         assert "deviation_pd" in alignment.metrics
+
+
+def test_photoref_on_bright_video_is_honest(face_video):
+    # astronaut video is a normally lit scene; the dim-room gate must reject it
+    # and the module must answer inconclusive-with-retakes, never a number
+    meta = SessionMeta(
+        session_id="t4", px_per_cm=37.8, distance_cm=50.0, fps=10.0,
+        segments=[SegmentMeta(test_id="photoref", start_ts=0.0, end_ts=2.0, events=[])],
+    )
+    findings = analyze_session(face_video, meta)
+    pr = next(f for f in findings if f.module == "photorefraction")
+    assert pr.tier == "inconclusive"
+    assert pr.retakes
+    assert "sphere_d" not in pr.metrics
 
 
 def test_missing_acuity_segment_is_inconclusive(face_video):
