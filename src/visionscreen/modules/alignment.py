@@ -30,8 +30,35 @@ MAX_PLAUSIBLE_PD = 60.0
 
 # A true deviation is stable across frames; uncorrelated stray highlights
 # jitter. Require enough agreement before quoting a number.
-MIN_FRAMES_FOR_MAGNITUDE = 5
+#
+# The frame count is set from measurement, not taste. On real eye crops with a
+# glint injected at a known decentration (bench_real_hirschberg), single-frame
+# error is 5.35 PD mean absolute, implying a per-frame sigma of 6.7 PD. The
+# median of n frames then carries roughly 1.25*sigma/sqrt(n) of standard error:
+#
+#     n = 5  -> 3.0 PD      n = 20 -> 1.5 PD      n = 40 -> 1.1 PD
+#
+# and the measured value at n = 40 was 1.09 PD, matching the model. Twenty
+# frames keeps the magnitude error near 1.5 PD, comfortably inside the ~5 PD
+# interexaminer agreement of the prism cover test itself, so a 10 PD flag is
+# meaningful. Below that the number is not worth quoting.
+MIN_FRAMES_FOR_MAGNITUDE = 20
+PER_FRAME_SIGMA_PD = 6.7        # measured on real eye images
 MAX_ASYMMETRY_DISPERSION_MM = 0.45
+
+
+def expected_magnitude_error_pd(n_frames: int) -> float:
+    """Expected mean absolute error of the aggregated deviation, in PD.
+
+    The 1.253 factor is the asymptotic efficiency of the median relative to the
+    mean; it does not apply at n = 1, where the median simply is the sample.
+    """
+    if n_frames < 1:
+        return float("inf")
+    import math
+    efficiency = 1.0 if n_frames == 1 else 1.253
+    se = efficiency * PER_FRAME_SIGMA_PD / math.sqrt(n_frames)
+    return se * math.sqrt(2 / math.pi)
 
 
 @dataclass(frozen=True)
@@ -201,6 +228,7 @@ def score_alignment(
         "deviation_pd": deviation_pd,
         "asymmetry_mm": round(asym_mm, 2),
         "frames": len(per_frame),
+        "expected_error_pd": round(expected_magnitude_error_pd(len(per_frame)), 1),
     }
     if len(per_frame) > 1:
         metrics["asymmetry_dispersion_mm"] = round(dispersion, 3)

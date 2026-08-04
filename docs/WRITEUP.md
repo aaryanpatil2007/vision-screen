@@ -377,6 +377,68 @@ than a headline number: **single-frame Hirschberg from uncontrolled
 photographs is unreliable, and the product's controlled-glint video protocol
 is not optional — it is the thing that makes the measurement possible at all.**
 
+### 4.4c Hirschberg accuracy on REAL eye images, with ground truth
+
+The clinical-photograph test (§4.4b) showed the measurement chain failing on
+real images but could not say by *how much*, because a Commons photograph
+carries no known deviation. That gap is closable: take real eye crops from the
+corpus, suppress any pre-existing corneal highlight, and inject a specular
+glint at a **known** decentration. Real skin, iris pigment, lids, lashes,
+sensor noise and blur; exact ground truth. This is software doing what a
+clinical transilluminator does — supplying its own light so its position is
+known.
+
+**Single-frame accuracy on real images, by injected deviation (300 crops):**
+
+| true deviation | detection rate | mean abs error |
+|---|---|---|
+| 0 PD | 1.00 | 10.2 PD |
+| 10 PD | 1.00 | 7.3 PD |
+| 20 PD | 1.00 | 7.1 PD |
+| 45 PD | 1.00 | 6.5 PD |
+| **overall** | **1.00** | **7.5 PD** |
+
+Against **0.60 PD** on synthetic images — a twelvefold degradation, and the
+honest single-frame figure. Error is roughly constant across deviations, which
+identifies it as a fixed localisation error rather than a scale error.
+
+**The decisive result — frame aggregation.** The product never scores single
+frames; it takes the median decentration across a capture segment. If the
+per-frame error is independent noise it should shrink as 1/√n; if it is
+systematic bias it will not shrink at all. Measured at 15 PD over 120 trials:
+
+| | mean abs error |
+|---|---|
+| single real frame | **5.35 PD** |
+| median of 40 real frames | **1.09 PD** (p90 2.13) |
+
+It is noise, and aggregation removes it. A per-frame σ of 6.7 PD predicts
+1.06 PD at n = 40; the measured value was 1.09, so the noise model is right and
+can be used to set the frame requirement rather than guessing it:
+
+| frames | expected magnitude error |
+|---|---|
+| 5 | 3.0 PD |
+| **20** | **1.5 PD** |
+| 40 | 1.1 PD |
+
+`MIN_FRAMES_FOR_MAGNITUDE` is therefore 20, and each reported deviation now
+carries its own `expected_error_pd` derived from the frames actually used.
+
+**Why this matters.** Interexaminer agreement for the prism cover test — the
+clinical reference — has 95% limits of roughly **±5 PD**. A 1.1 PD aggregated
+error on real eye images sits comfortably inside the reference test's own
+noise. This is the strongest accuracy statement in the project that rests on
+real image data rather than simulation. It still is not a clinical validation:
+the injected glint tests the measurement chain, not the optics of a genuinely
+rotated eye, and no patient was measured.
+
+**The null condition.** Running the same detection on real crops with *no*
+glint injected, any confident reading is by construction an artifact. 14% of
+crops still produced a measurement (median 71 PD, i.e. obvious nonsense), and
+**4% passed the plausibility ceiling** — the residual false-confidence rate of
+the current guards, and a number to reduce rather than hide.
+
 ### 4.5 Why real sessions failed before
 
 Analysis of the real corpus found that **only 10.8% of real webcam eye crops

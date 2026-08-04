@@ -142,3 +142,33 @@ def test_single_frame_magnitude_is_provisional():
                         valid_fraction=0.9)
     assert f.tier == "weak-signal"
     assert "provisional" in f.summary
+
+
+def test_expected_error_matches_measured_aggregation():
+    """The frame requirement is set from bench_real_hirschberg, which measured
+    1.09 PD at 40 frames on real eye images; the model must reproduce it."""
+    from visionscreen.modules.alignment import (
+        MIN_FRAMES_FOR_MAGNITUDE, expected_magnitude_error_pd,
+    )
+    assert expected_magnitude_error_pd(40) == pytest.approx(1.09, abs=0.15)
+    assert expected_magnitude_error_pd(1) == pytest.approx(5.35, abs=0.6)
+    # the chosen minimum must keep magnitude error well inside the ~5 PD
+    # interexaminer agreement of the prism cover test
+    assert expected_magnitude_error_pd(MIN_FRAMES_FOR_MAGNITUDE) < 2.0
+    # and error must fall with more frames
+    assert expected_magnitude_error_pd(60) < expected_magnitude_error_pd(20)
+
+
+def test_reported_deviation_carries_its_own_error_bar():
+    f = score_alignment(frames((0.0, 0.0), (20.0 / 18.0, 0.0), n=40), None,
+                        valid_fraction=0.9)
+    assert f.metrics["expected_error_pd"] < 2.0
+    assert f.tier == "measured"
+
+
+def test_few_frames_downgraded_even_when_clean():
+    """10 frames implies ~2 PD error — not enough to quote a magnitude."""
+    f = score_alignment(frames((0.0, 0.0), (20.0 / 18.0, 0.0), n=10), None,
+                        valid_fraction=0.95)
+    assert f.tier == "weak-signal"
+    assert "provisional" in f.summary
