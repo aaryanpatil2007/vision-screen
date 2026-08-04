@@ -143,6 +143,64 @@ def run(n_crops: int = 250, seed: int = 9) -> dict:
     }
 
 
+def compare_radius_sources(n_crops: int = 220) -> dict:
+    """Does the measured pupil radius actually beat the population constant?
+
+    Pupil radius enters the inversion proportionally, so this isolates that one
+    term: identical images, identical measurement code, only the radius source
+    differs. Truth is built from the mask's pupil, so neither source is given
+    the answer.
+    """
+    from visionscreen.ml.infer import EyeSegmenter
+
+    seg = EyeSegmenter()
+    if not seg.available:
+        return {"error": "no checkpoint"}
+    img_dir, mask_dir = CORPUS / "images", CORPUS / "masks"
+    const_err: dict[float, list[float]] = {s: [] for s in SPHERES}
+    meas_err: dict[float, list[float]] = {s: [] for s in SPHERES}
+
+    for p in sorted(img_dir.glob("*.png"))[:n_crops]:
+        mp = mask_dir / p.name
+        if not mp.exists():
+            continue
+        crop = cv2.imread(str(p), cv2.IMREAD_GRAYSCALE)
+        mask = cv2.imread(str(mp), cv2.IMREAD_GRAYSCALE)
+        if crop is None or mask is None:
+            continue
+        pupil = _pupil_from_mask(mask)
+        iris_d = _iris_diameter(mask)
+        if pupil is None or iris_d < 12:
+            continue
+        center, true_r = pupil
+        if true_r < 4:
+            continue
+        px_per_m = iris_d / (HVID_MM / 1000.0)
+        r_const = 0.35 * iris_d
+        sg = seg.segment(crop)
+        if sg is None or sg.pupil_radius_px <= 0:
+            continue
+        for S in SPHERES:
+            img = inject_crescent(crop, center, true_r, S, px_per_m)
+            for bucket, radius in ((const_err, r_const), (meas_err, sg.pupil_radius_px)):
+                est = measure_reflex(img, center, radius, e_m=E_M, d_m=D_M,
+                                     px_per_m=px_per_m)
+                if est is not None:
+                    bucket[S].append(abs(est[0] + est[1] / 2.0 - S))
+
+    flat = lambda d: [e for S in SPHERES for e in d[S]]  # noqa: E731
+    return {
+        "population_constant_mae_d": round(float(np.mean(flat(const_err))), 3),
+        "measured_radius_mae_d": round(float(np.mean(flat(meas_err))), 3),
+        "by_sphere": [
+            {"sphere_d": S,
+             "constant": round(float(np.mean(const_err[S])), 3) if const_err[S] else None,
+             "measured": round(float(np.mean(meas_err[S])), 3) if meas_err[S] else None}
+            for S in SPHERES
+        ],
+    }
+
+
 def main() -> None:
     r = run()
     Path("results").mkdir(exist_ok=True)
@@ -158,6 +216,16 @@ def main() -> None:
     print(f"synthetic-image reference:   {r['synthetic_reference_d']} D")
     print(f"\nNULL (untouched real crop, any estimate is an artifact): "
           f"{r['null_measured_rate']:.0%} produced one")
+
+    cmp = compare_radius_sources()
+    r["radius_source_comparison"] = cmp
+    RESULTS.write_text(json.dumps(r, indent=2))
+    if "error" not in cmp:
+        print("\nPupil radius source (identical images and code, radius differs):")
+        print(f"  population constant (0.35 x iris): "
+              f"{cmp['population_constant_mae_d']} D")
+        print(f"  measured by the segmenter:         "
+              f"{cmp['measured_radius_mae_d']} D")
 
 
 if __name__ == "__main__":

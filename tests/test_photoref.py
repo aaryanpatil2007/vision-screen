@@ -85,3 +85,25 @@ def test_consistent_estimates_still_reported():
     f = score_photoref(steady, dead_frames=0, valid_fraction=0.9)
     assert f.tier == "measured"
     assert f.metrics["sphere_d"] == pytest.approx(-1.83, abs=0.2)
+
+
+def test_radius_error_is_proportional_not_additive():
+    """Pupil radius enters w = 2r - e/(d|A|), so a radius error scales the
+    diopter estimate rather than offsetting it. This is why the measured
+    real-image error grew with defocus (0.46 D at 2 D, 1.40 D at 4 D with a
+    population constant) and why using the measured radius cut it 3.8x."""
+    from visionscreen.modules.photoref import invert_width
+
+    px_per_m, e_m, d_m = 8000.0, 0.005, 0.5
+    true_r, wrong_r = 32.0, 32.0 * 1.4      # 40% too large
+    ratios = []
+    for w_frac in (0.3, 0.5, 0.7):
+        w = 2 * true_r * w_frac
+        a_true = invert_width(w, true_r, e_m, d_m, px_per_m)
+        a_wrong = invert_width(w, wrong_r, e_m, d_m, px_per_m)
+        assert a_true and a_wrong
+        ratios.append(a_wrong / a_true)
+    # a proportional error shows up as a roughly constant RATIO across
+    # magnitudes, which an additive offset would not produce
+    assert max(ratios) / min(ratios) < 2.0, ratios
+    assert all(r < 1.0 for r in ratios), ratios

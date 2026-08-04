@@ -641,11 +641,29 @@ back to a population constant. After the fix the model predicts **0.476 ±
 each subject's own measured pupil — which is precisely the term whose error was
 producing the defocus-proportional scale error in §4.4f.
 
+**Verified, not assumed.** The claim that a measured radius beats the constant
+was then tested directly — identical images, identical measurement code, only
+the radius source differing, with ground truth built from the mask so neither
+source is handed the answer:
+
+| true sphere | population constant (0.35 × iris) | measured radius |
+|---|---|---|
+| ±2.0 D | 0.46 D | **0.15 D** |
+| ±3.0 D | 0.87 D | **0.22 D** |
+| ±4.0 D | 1.40 D | **0.37 D** |
+| **overall** | **1.069 D** | **0.283 D** |
+
+A **3.8× error reduction**, and — the diagnostic point — the gain grows with
+defocus exactly as a proportional (scale) error predicts and an additive one
+would not. The null artifact rate fell alongside it, 18% → 8%, because a
+tighter pupil prediction leaves less room for texture to imitate a crescent.
+
 This is the kind of defect that only surfaces when a downstream module cares
-about a quantity the label was never checked against, and the chain from
-symptom to cause ran: error grows with defocus → radius enters proportionally →
-radius came from a constant → the measurement that should replace it was
-unusable → the labels behind it were wrong.
+about a quantity the label was never checked against. The chain from symptom to
+cause ran: error grows with defocus → radius enters proportionally → radius
+came from a population constant → the measurement that should have replaced it
+was rejected as implausible → the labels behind that measurement were wrong.
+Four links, each only visible from the one before it.
 
 ### 4.5 Why real sessions failed before
 

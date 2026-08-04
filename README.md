@@ -118,7 +118,8 @@ order of magnitude:
 |---|---|---|
 | alignment, single frame | 0.60 PD | **5.35 PD** |
 | alignment, 40-frame median | — | **1.09 PD** |
-| photorefraction | 0.027 D | **0.187 D** |
+| photorefraction (measured pupil) | 0.027 D | **0.283 D** |
+| photorefraction (population constant) | — | 1.069 D |
 | segmentation (mIoU) | 0.926 | **0.697** |
 
 **Alignment accuracy on real eye images** — a controlled glint injected at a
