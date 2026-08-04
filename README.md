@@ -1,74 +1,134 @@
 # VisionScreen
 
-Webcam-based **vision screening** from a guided browser test: visual acuity,
-eye alignment (strabismus), and refractive-error estimation via eccentric
-photorefraction — physics-based inversion on top of MediaPipe perception.
+A webcam-based **vision screening battery** — ten guided tests in a browser,
+analysed with clinical physics and a purpose-trained segmentation network.
 
-> **This is a screening signal only, not a diagnosis. See an optometrist for
-> a clinical evaluation.** Accuracy numbers below are synthetic-benchmark
-> results; the system has not been validated on real eyes.
+> **Screening tool, not a diagnosis.** It cannot measure eye pressure, examine
+> the retina, or rule out disease, and it has not been validated against
+> clinical measurement in human subjects. Use it to decide whether to book an
+> eye exam — never to skip one.
 
-## What it does
+---
 
-You sit in front of your webcam and the browser walks you through:
+## What it measures
 
-1. **Tumbling-E acuity test** — press arrow keys for letter directions; a
-   staircase homes in on your acuity (logMAR) while the camera watches for
-   squinting and leaning in.
-2. **Dot pursuit** — follow a moving dot; corneal-reflex symmetry (Hirschberg)
-   and inter-eye pursuit conjugacy screen for misalignment.
-3. **Dim-room flash** — a bright screen band in a dark room produces a red
-   reflex crescent; its geometry is inverted to a defocus estimate (diopters).
+| Test | Output |
+|---|---|
+| Visual acuity — binocular, right eye, left eye | logMAR + Snellen, corrected for measured viewing distance |
+| Contrast sensitivity | log CS (Pelli-Robson triplets) |
+| Astigmatism | minus-cylinder axis from the clock dial |
+| Color vision | red-green screen, protan/deutan lean |
+| Central field | metamorphopsia / scotoma marks (Amsler grid) |
+| Eye movement | smooth-pursuit gain, catch-up saccades |
+| Eye alignment | deviation in prism diopters (Hirschberg) |
+| Pupil response | constriction %, latency, inter-eye asymmetry (RAPD) |
+| Refraction | sphere / cylinder / axis (eccentric photorefraction) |
+| Viewing behaviour | squinting, lean-in, head tilt |
 
-Output: an HTML report with per-module findings and confidence tiers
-(`measured` / `weak-signal` / `inconclusive`). Quality gates ask for retakes
-instead of guessing.
+Every finding carries a confidence tier — **measured**, **weak-signal**, or
+**inconclusive** — and the system reports *inconclusive with instructions*
+rather than guessing when the data will not support a number.
+
+---
 
 ## Quickstart
 
 ```bash
 python3.12 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
-.venv/bin/python -m pytest                      # 69 tests
-.venv/bin/uvicorn webapp.app:app --port 8000    # open http://localhost:8000
+.venv/bin/uvicorn webapp.app:app --port 8000     # then open http://localhost:8000
 ```
 
-## Benchmarks (synthetic, reproducible)
+The app calibrates your screen against a credit card (ISO/IEC 7810: 85.60 mm),
+shows a live eye-tracking overlay while you test, and produces a printable
+report. Everything runs locally; the video never leaves the machine.
 
-| module | headline result | command |
-|---|---|---|
-| acuity | 0.063 logMAR mean abs error (50 observers) | `python -m benchmarks.bench_module1` |
-| alignment | 0.60 PD mean abs error, 100% detection | `python -m benchmarks.bench_module2` |
-| photorefraction | 0.063 D mean abs spherical-equivalent error | `python -m benchmarks.bench_module3` |
+---
+
+## Key results
+
+**Sim-to-real transfer** — the reason this project trains on real data at all:
+
+| training data | synthetic mIoU | **real mIoU** | real pupil IoU |
+|---|---|---|---|
+| synthetic only | 0.919 | **0.241** | 0.367 |
+| synthetic + weakly-labeled real | 0.919 | **0.691** | 0.830 |
+
+**Battery accuracy** (120 simulated patients with realistic lapse rates):
+
+| test | result |
+|---|---|
+| Visual acuity | 0.077 logMAR mean error; 89% within chart test-retest repeatability |
+| Contrast sensitivity | 0.168 log CS mean error |
+| Strabismus (≥10 PD) | sensitivity 1.00 / specificity 1.00 |
+| RAPD | sensitivity 1.00 / specificity 1.00 |
+| Color deficiency | sensitivity 1.00 / specificity 0.97 |
+| Astigmatism axis | 4.8° mean error |
+| Photorefraction | 0.029 D mean spherical-equivalent error |
 
 Full methods, limitations, and citations: [`docs/WRITEUP.md`](docs/WRITEUP.md).
 
-## Real-world reference images
+---
+
+## Data pipeline
 
 ```bash
-.venv/bin/python -m visionscreen.data.fetch_public
+.venv/bin/python -m visionscreen.data.hf_datasets --date 2026-08-04  # real images
+.venv/bin/python -m visionscreen.data.fetch_public                   # clinical examples
+.venv/bin/python -m visionscreen.data.build_real_corpus              # weak labels
 ```
 
-fetches openly licensed clinical examples (strabismus, red reflex, …) from
-Wikimedia Commons into `data/real/commons/` with per-item provenance.
+All sources are openly downloadable without credentials, and every item is
+logged with its URL, license, and fetch date. Real images carry gaze targets
+but no masks, so labels come from geometric (MediaPipe iris circle) and
+photometric (dark pupil / bright reflex within that circle) priors, with
+disagreeing crops **rejected** rather than mislabeled — currently a 62%
+acceptance rate over ~4,700 candidate crops.
+
+## Training and benchmarks
+
+```bash
+.venv/bin/python -m visionscreen.ml.train --n-train 12000 --epochs 20 --device mps
+.venv/bin/python -m benchmarks.bench_segmentation   # sim-to-real
+.venv/bin/python -m benchmarks.bench_battery        # simulated patients
+.venv/bin/python -m benchmarks.bench_module1        # acuity staircase
+.venv/bin/python -m benchmarks.bench_module2        # Hirschberg
+.venv/bin/python -m benchmarks.bench_module3        # photorefraction
+```
+
+## Tests
+
+```bash
+.venv/bin/python -m pytest        # unit, integration, and real-browser (Playwright)
+```
+
+Browser tests drive Chromium with a synthetic camera and assert that the
+client's optotype and contrast maths match the server's bit for bit — so
+rendering can never silently drift from scoring.
+
+---
 
 ## Layout
 
 ```
 src/visionscreen/
-  protocol.py        session/segment/event schema
-  perception/        MediaPipe landmarks, eye geometry, iris + reflex
-  quality/gates.py   capture-quality gates → retake instructions
-  modules/           acuity, behavioral, alignment, photoref scoring
-  synth/             schematic eye + photorefraction crescent renderers
-  analyzer.py        video + session meta → findings
-  data/              provenance-logged public image fetcher
-webapp/              FastAPI + vanilla-JS guided protocol UI
-benchmarks/          per-module accuracy harnesses → results/*.json
+  protocol.py        session / segment / event schema
+  perception/        landmarks, eye geometry, iris + reflex, distance
+  ml/                EyeSegNet, datasets, training, inference
+  synth/             domain-randomized eyes, photorefraction crescents
+  quality/           capture gates -> retake instructions
+  modules/           per-test scoring (acuity, contrast, astigmatic, amsler,
+                     colorvision, motility, alignment, pupillometry, photoref)
+  data/              dataset fetchers, weak labeling, corpus builder
+  analyzer.py        video + protocol -> findings
+  report.py          tiers, visuals, printable HTML report
+webapp/              FastAPI + ES-module front end with live tracking overlay
+benchmarks/          accuracy harnesses -> results/*.json
 docs/                spec, plans, research writeup
 ```
 
 ## Design docs
 
 - Spec: `docs/superpowers/specs/2026-08-04-vision-screening-pipeline-design.md`
-- Plans: `docs/superpowers/plans/` (foundation+module1, alignment, photorefraction)
+- Plans: `docs/superpowers/plans/`
+- Writeup: `docs/WRITEUP.md`
