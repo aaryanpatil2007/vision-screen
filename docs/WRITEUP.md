@@ -186,9 +186,9 @@ Crops are **rejected** rather than mislabeled when the priors disagree: the
 pupil must be concentric with the iris, occupy 2–75% of the disk, and be at
 least 12 grey levels darker than the surrounding iris annulus; blown-out crops
 (>35% saturated) are dropped. That last rule was added after inspection showed
-spectacle glare being labeled as pupil. Acceptance rate: **56.7%** (1,154
-labeled crops from 2,036 candidates) — the rejected fraction is reported, not
-hidden.
+spectacle glare being labeled as pupil. Acceptance rate: **54.3%** (6,130
+labeled crops from 11,000+ candidates across 5,980 source images) — the
+rejected fraction is reported, not hidden.
 
 ### 3.4 Clinical inversions
 
@@ -289,8 +289,9 @@ Each of these was found by measurement, not inspection:
 
 ### 4.5 Why real sessions failed before
 
-Analysis of the real corpus found that **only 10.5% of real webcam eye crops
-show a usable corneal reflex** under ordinary room lighting. This — not the
+Analysis of the real corpus found that **only 10.8% of real webcam eye crops
+show a usable corneal reflex** under ordinary room lighting (662 of 6,130
+crops; the figure was 10.5% on the first 1,154, so it replicates). This — not the
 algorithm — is why alignment returned "inconclusive" on real users. The
 capture protocol was changed so the pursuit target is a bright white disc on a
 dark field, making the test supply its own catchlight, as a clinical
