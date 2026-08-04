@@ -333,6 +333,50 @@ Each of these was found by measurement, not inspection:
    latency asymmetry range (8.3–35 ms; Bergamin & Kardon 2003). Latency is now
    withheld below 55 fps rather than reported as noise.
 
+### 4.4b Real-patient validation — and the failure it exposed
+
+Every other benchmark here scores simulated observers or synthetic images. To
+get closer to a real measurement, the production alignment path was run over
+photographs of people **clinically categorised** on Wikimedia Commons with
+esotropia, exotropia or hypertropia (category membership is editor-curated, so
+unlike a keyword search it genuinely returns diagnosed patients), plus 60
+presumed-normal faces sampled from the GazeCapture-derived corpus.
+
+**It failed, informatively.**
+
+| | before guards | after guards |
+|---|---|---|
+| specificity | **0.09** | **0.64** |
+| median deviation, normal faces | **61 PD** | **21 PD** |
+| worst single reading on a normal face | **163 PD** | rejected |
+
+163 prism diopters exceeds any human strabismus. The pipeline was locating
+window reflections, lamps and spectacle glare and treating them as corneal
+catchlights — on the same code that scored **0.60 PD error** on synthetic
+images. This is the sharpest example in the project of a synthetic benchmark
+certifying something that does not survive contact with real photographs.
+
+Two guards followed directly from the data:
+
+* **A physiological ceiling.** Readings above 60 PD are rejected as artifacts
+  and reported as inconclusive-with-instructions, never as a magnitude.
+* **Frame-to-frame stability.** A real deviation is steady across frames while
+  uncorrelated stray highlights jitter, so a magnitude now requires agreement
+  across frames, and a single-frame estimate is capped at `weak-signal`
+  regardless of image quality.
+
+**What this validation does and does not establish.** It is a real-patient test
+of the Hirschberg geometry on uncontrolled still photographs, so it exposes
+artifact sensitivity that synthetic data cannot. It is *not* a clinical
+validation: n is small (16 categorised patients, of which only a fraction were
+measurable at all), category membership is not a cover test, the controls are
+presumed-normal rather than examined, and — most importantly — a single
+uncontrolled still is **not** the guided, dim-room, controlled-glint video the
+product actually captures. The honest conclusion is narrower and more useful
+than a headline number: **single-frame Hirschberg from uncontrolled
+photographs is unreliable, and the product's controlled-glint video protocol
+is not optional — it is the thing that makes the measurement possible at all.**
+
 ### 4.5 Why real sessions failed before
 
 Analysis of the real corpus found that **only 10.8% of real webcam eye crops
