@@ -146,8 +146,13 @@ button.ghost:hover { border-color: var(--accent); }
   font-size: 12.5px; color: var(--muted); }
 #optotype { font-weight: 700; line-height: 1; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; }
 .stage.white #optotype { color: #000; }
-#pursuitDot { width: 26px; height: 26px; border-radius: 50%; background: var(--accent);
-  position: absolute; box-shadow: 0 0 22px rgba(78,163,255,.8); }
+/* The pursuit target doubles as the Hirschberg light source: a bright white
+   disc on a dark stage puts a controlled catchlight on the cornea. Only ~10%
+   of ordinary-room webcam frames show a usable reflex without this. */
+#pursuitDot { width: 30px; height: 30px; border-radius: 50%; background: #fff;
+  position: absolute; box-shadow: 0 0 34px 10px rgba(255,255,255,.95); }
+.stage.glint { background: #05070a; }
+.stage.glint .instruction, .stage.glint .sub { color: #5b6b7d; }
 #flashband { position: absolute; top: 0; left: 0; right: 0; height: 17vh; background: #fff; display: none; }
 
 .keypad { display: grid; grid-template-columns: repeat(3, 62px); gap: 8px; margin-top: 34px; }

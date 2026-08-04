@@ -101,11 +101,16 @@ def score_alignment(
             )
         return Finding(
             module="alignment",
-            summary="Too few usable frames to assess eye alignment.",
+            summary=(
+                "Eye alignment could not be measured: no corneal light reflection was "
+                "visible. In ordinary room lighting only about one webcam frame in ten "
+                "shows one, which is why this test uses a bright target on a dark screen."
+            ),
             tier="inconclusive",
             retakes=[
-                "Re-record the dot-following test with your face well lit and steady.",
-                "Place a lamp in front of you (behind the screen) so a light glint is visible on your eyes.",
+                "Dim the room lights and repeat the dot-following test — the bright dot "
+                "needs to be the strongest light on your face.",
+                "Remove glasses if you can; lens reflections hide the corneal glint.",
             ],
         )
 

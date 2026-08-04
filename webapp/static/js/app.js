@@ -375,10 +375,13 @@ class App {
       `Follow the moving dot with your EYES ONLY — keep your head still.
        This measures how smoothly and symmetrically your eyes move. ~18 seconds.`);
     const seg = this.session.open("motility");
+    // Dark stage + bright dot: the target itself is the Hirschberg light source,
+    // so the corneal reflex needed for alignment is actually present.
     const st = this.stage(`
-      <div class="instruction">Follow the dot with your eyes. Keep your head still.</div>
+      <div class="instruction">Follow the bright dot with your eyes. Keep your head still.</div>
       <div id="pursuitDot"></div>
       <div class="sub" id="ptime"></div>`);
+    st.classList.add("glint");
     const dot = st.querySelector("#pursuitDot");
     const DUR = 18000, t0 = performance.now();
     let lastLog = 0;
