@@ -183,3 +183,28 @@ def test_stimuli_render_visible_ink(server, browser_ctx):
     assert inked["dial"] > 0.02, inked
     assert inked["amsler"] > 0.5, inked      # grid is white-on-black: mostly non-white
     assert inked["plate"] > 0.3, inked
+
+
+def test_color_plate_is_luminance_isochromatic(server, browser_ctx):
+    """The figure must not be readable from brightness alone — the defining
+    property of a pseudoisochromatic plate."""
+    page, _ = _page(browser_ctx, server)
+    stats = page.evaluate("""async () => {
+        const s = await import('/static/js/stimuli.js');
+        const c = document.createElement('canvas'); c.width = c.height = 400;
+        const g = c.getContext('2d');
+        s.drawColorPlate(g, 200, 200, 180, 8, 'general', s.mulberry32(3));
+        const d = g.getImageData(0, 0, 400, 400).data;
+        // classify dots by hue side, compare mean luma of the two populations
+        let rSum = 0, rN = 0, gSum = 0, gN = 0;
+        for (let i = 0; i < d.length; i += 4) {
+            const [r, gg, b] = [d[i], d[i+1], d[i+2]];
+            if (Math.abs(r - 242) < 6 && Math.abs(gg - 239) < 6) continue;  // paper
+            const luma = 0.299*r + 0.587*gg + 0.114*b;
+            if (r > gg) { rSum += luma; rN++; } else { gSum += luma; gN++; }
+        }
+        return { redLuma: rSum / Math.max(rN,1), greenLuma: gSum / Math.max(gN,1),
+                 redN: rN, greenN: gN };
+    }""")
+    assert stats["redN"] > 500 and stats["greenN"] > 500, stats
+    assert abs(stats["redLuma"] - stats["greenLuma"]) < 8, stats

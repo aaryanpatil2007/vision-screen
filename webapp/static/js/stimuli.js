@@ -109,6 +109,19 @@ export function drawColorPlate(ctx, cx, cy, radius, digit, type, rng) {
   };
   const pal = PALETTES[type] || PALETTES.general;
 
+  // A pseudoisochromatic plate only works if the figure is invisible to the
+  // LUMINANCE channel — otherwise a color-deficient viewer reads it as a
+  // brightness edge and the plate tests nothing. Scale each figure colour to
+  // match the mean background luma (Rec.601), then randomize lightness per dot
+  // so no residual edge survives.
+  const luma = (c) => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+  const bgLuma = pal.bg.reduce((s, c) => s + luma(c), 0) / pal.bg.length;
+  const matched = pal.fig.map((c) => {
+    const k = bgLuma / Math.max(luma(c), 1);
+    return c.map((v) => Math.max(0, Math.min(255, Math.round(v * k))));
+  });
+  const palette = { fig: matched, bg: pal.bg };
+
   // rasterize the digit into an offscreen mask
   const off = document.createElement("canvas");
   off.width = off.height = radius * 2;
@@ -130,8 +143,11 @@ export function drawColorPlate(ctx, cx, cy, radius, digit, type, rng) {
     const x = Math.cos(a) * rr, y = Math.sin(a) * rr;
     const mx = Math.round(x + radius), my = Math.round(y + radius);
     const inFigure = mask[(my * off.width + mx) * 4] > 128;
-    const set = inFigure ? pal.fig : pal.bg;
-    const c = set[Math.floor(rng() * set.length)];
+    const set = inFigure ? palette.fig : palette.bg;
+    const base = set[Math.floor(rng() * set.length)];
+    // per-dot lightness jitter, applied identically to figure and background
+    const jitter = 0.86 + rng() * 0.28;
+    const c = base.map((v) => Math.max(0, Math.min(255, Math.round(v * jitter))));
     const dr = radius * (0.018 + rng() * 0.028);
     ctx.beginPath();
     ctx.arc(cx + x, cy + y, dr, 0, Math.PI * 2);
