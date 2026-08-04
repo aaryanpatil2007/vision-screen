@@ -85,6 +85,40 @@ imitation:
 
 ## 3. Methods
 
+### 3.0 What the battery cannot see, quantified
+
+Screening tools are usually honest in the abstract ("not a substitute for an
+eye exam") and vague about magnitude. The magnitude is knowable. In a
+self-declared-healthy cohort with a median age of 70, a full examination found
+**25% needed referral and a further 9% needed monitoring — 34% with findings
+that no screen-and-webcam test can detect.** In a refractive-complaint clinic
+population, 26.1% had at least one asymptomatic condition (13.7% retinal, 4.9%
+glaucoma or ocular hypertension). Roughly half of glaucoma in white populations
+and three quarters in Latino populations is undiagnosed at any given time.
+
+That number is stated in the product, not just in this document.
+
+The blind spot is structural, not a matter of effort:
+
+* **Intraocular pressure** has no external optical signature; an eye at 10 and
+  at 30 mmHg look identical. Published "image-based IOP" work produces binary
+  classifiers on small samples from a physiologically unaccepted premise
+  (scleral redness), never millimetres of mercury.
+* **The angle** is invisible in principle: light from the iridocorneal angle
+  exceeds the critical angle at the cornea-air interface (~46°) and totally
+  internally reflects. A goniolens removes that interface. No image processing
+  can recover photons that never leave the eye.
+* **The retina** needs a condensing lens (+20/+28 D) or a fundus camera's
+  annular illumination; a front-facing webcam's light source is coaxial with
+  its sensor, which produces corneal glare rather than a retinal image.
+* **Cycloplegic refraction** requires a drug.
+
+USPSTF context matters here too: screening asymptomatic adults ≥65 for impaired
+acuity carries a **Grade I (insufficient evidence)** statement, with four RCTs
+showing no difference in visual or functional outcomes between screening and no
+screening. This system therefore makes no claim to improve outcomes; it
+measures visual function and reports numbers.
+
 ### 3.1 Angular calibration
 
 Every psychophysical stimulus needs true angular size, which requires the
@@ -98,6 +132,26 @@ logMAR-*L* optotype then subtends 5·10^L arcmin:
 The browser and server implement this identically; a test asserts bit-level
 agreement between the two so client rendering can never silently drift from
 server scoring.
+
+**Distance is then measured rather than trusted.** The stated distance
+calibrates a pinhole focal length once, after which distance is recovered per
+frame from the **iris diameter**, not the interocular distance. Two reasons:
+the horizontal visible iris diameter has a population CV of 3.6% (11.71 ±
+0.42 mm) against ~5.5% for interpupillary distance, and — more importantly —
+it is geometrically robust to head pose. A yaw of θ foreshortens the
+interocular segment by cos θ (20° → 6% distance error → 0.025 logMAR) while
+the projected major axis of a circle is unchanged. Since logMAR is a log-scale
+measure, a distance error of factor *k* biases acuity by exactly log₁₀(*k*);
+each acuity segment is corrected by the distance actually held during it.
+
+**Display luminance is attested, not measured.** ISO 8596 specifies 80–320
+cd/m² and BS 4274-1 wants ≥120; measured acuity falls roughly 0.2 logMAR per
+decade of luminance below that, so a user at minimum laptop brightness
+(~3.5 cd/m²) measures about 1.3 lines worse than their true acuity — enough to
+manufacture a referral. No browser API reports luminance, so the app gates the
+run behind an explicit brightness attestation plus a 16-step grey ramp that
+makes a crushed dark end visible. This is the same compromise the validated
+browser-based perimeter (MRF-web) makes.
 
 ### 3.2 Perception
 
@@ -315,6 +369,34 @@ Two further external reference points bound expectations here:
     disparity floor is ~75 arcsec, so the 40 arcsec clinical rung is not
     presentable without subpixel rendering. The floor is computed per session
     and reported with the result.
+
+---
+
+## 5b. Regulatory posture
+
+This is a research prototype and is deliberately built to stay one. The
+relevant precedent is direct: the FDA issued a warning letter against
+Opternative in 2017 because its online test was *"intended for use in the
+diagnosis of disease"* and produced a spectacle prescription, and the product
+was recalled in 2019 for lack of 510(k) clearance. The first cleared online
+vision test (2022) is cleared for **visual acuity only, in adults aged 22–40,
+as supportive information reviewed by a licensed doctor** — a far narrower
+claim than "an eye exam." Several US states additionally prohibit prescriptions
+generated solely from a refractive measurement or by electronic means.
+
+The design consequences are concrete and are enforced in code and tests:
+
+* **No prescription is issued.** The photorefraction module reports a research
+  estimate of defocus and the report explicitly states it cannot be used to
+  order glasses or contact lenses (`test_refraction_is_labeled_not_a_prescription`).
+* **No disease is named as a finding.** Modules report functional observations
+  ("one meridian appeared consistently sharper", "the pupils differ in resting
+  size") rather than diagnoses.
+* **No output is labeled abnormal, positive, or failed.** The tiers describe
+  data quality, not pathology.
+* **Referral language is generic** — "worth getting checked" — which is the
+  form the FDA's general-wellness guidance explicitly permits.
+* **The report carries a not-FDA-cleared, not-a-medical-device footer.**
 
 ---
 
