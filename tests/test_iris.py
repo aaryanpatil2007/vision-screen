@@ -57,6 +57,19 @@ def test_no_reflex_in_dark_crop():
     assert detect_corneal_reflex(crop) is None
 
 
+def test_bright_sclera_excluded_by_iris_mask():
+    # bright sclera everywhere (235), dark iris disk, reflex dot inside the iris
+    crop = np.full((100, 140), 235, np.uint8)
+    import cv2 as _cv2
+
+    _cv2.circle(crop, (70, 50), 30, 60, -1)          # iris
+    crop[48:51, 78:81] = 255                          # reflex, 8 px right of center
+    xy = detect_corneal_reflex(crop, center_xy=(70, 50), radius_px=30)
+    assert xy is not None
+    assert xy[0] == pytest.approx(79, abs=1.5)
+    assert xy[1] == pytest.approx(49, abs=1.5)
+
+
 def test_real_face_iris_inside_corners():
     pytest.importorskip("skimage")
     from skimage import data

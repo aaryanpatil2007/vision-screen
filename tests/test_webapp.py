@@ -29,3 +29,4 @@ def test_analyze_returns_report(face_video_bytes):
     assert r.status_code == 200
     assert "screening signal only" in r.text
     assert "acuity" in r.text
+    assert "alignment" in r.text

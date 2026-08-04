@@ -9,6 +9,8 @@
   .rot-left { display: inline-block; transform: rotate(180deg); }
   .rot-right { display: inline-block; }
   #video { width: 160px; position: fixed; right: 1rem; bottom: 1rem; }
+  #dot { width: 24px; height: 24px; border-radius: 50%; background: #d33;
+         position: fixed; top: 40%; left: 0; display: none; }
 </style></head>
 <body>
 <h1>Vision Screening</h1>
@@ -16,6 +18,7 @@
 matching the direction its prongs point. 20 letters total.</p>
 <button id="start">Start test</button>
 <div id="letter"></div>
+<div id="dot"></div>
 <video id="video" autoplay muted></video>
 <script>
 const DIRS = ["up", "down", "left", "right"];
@@ -36,7 +39,7 @@ async function begin() {
 }
 
 async function nextTrial() {
-  if (trial >= N_TRIALS) return finish();
+  if (trial >= N_TRIALS) return runPursuit();
   shown = DIRS[Math.floor(Math.random() * DIRS.length)];
   const r = await fetch(`/config?logmar=${logmar}&distance_cm=${DISTANCE_CM}&px_per_cm=${PX_PER_CM}`);
   const { letter_px } = await r.json();
@@ -56,6 +59,32 @@ document.addEventListener("keydown", e => {
   nextTrial();
 });
 
+const PURSUIT_S = 10;
+let dotEvents = [], acuityEnd = 0;
+
+function runPursuit() {
+  acuityEnd = (performance.now() - startTs) / 1000;
+  document.getElementById("letter").hidden = true;
+  const dot = document.getElementById("dot");
+  dot.style.display = "block";
+  const w = window.innerWidth - 24, t0 = performance.now();
+  let lastLog = 0;
+  function step(now) {
+    const t = (now - t0) / 1000;
+    if (t >= PURSUIT_S) { dot.style.display = "none"; return finish(); }
+    const x = 0.5 + 0.4 * Math.sin(2 * Math.PI * t / 4);  // slow sweep
+    dot.style.left = `${x * w}px`;
+    if (now - lastLog > 100) {
+      lastLog = now;
+      dotEvents.push({ ts: (now - startTs) / 1000, kind: "dot", payload: { x } });
+    }
+    requestAnimationFrame(step);
+  }
+  document.querySelector("p").textContent =
+    "Now follow the red dot with your eyes only — keep your head still.";
+  requestAnimationFrame(step);
+}
+
 async function finish() {
   recorder.stop();
   await new Promise(res => recorder.onstop = res);
@@ -63,7 +92,10 @@ async function finish() {
   const meta = JSON.stringify({
     session_id: crypto.randomUUID(), px_per_cm: PX_PER_CM,
     distance_cm: DISTANCE_CM, fps: 30,
-    segments: [{ test_id: "acuity", start_ts: 0, end_ts: endTs, events }],
+    segments: [
+      { test_id: "acuity", start_ts: 0, end_ts: acuityEnd || endTs, events },
+      { test_id: "alignment", start_ts: acuityEnd || 0, end_ts: endTs, events: dotEvents },
+    ],
   });
   const form = new FormData();
   form.append("video", new Blob(chunks, { type: "video/webm" }), "session.webm");

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import cv2
 import numpy as np
 
 # Verified empirically (see Plan 2): iris center 468 belongs to the eye with
@@ -10,7 +11,7 @@ _IRIS = {
 }
 
 REFLEX_MIN_INTENSITY = 200
-REFLEX_PERCENTILE = 96.0
+REFLEX_MAX_DELTA = 15  # accept pixels within this of the local max
 
 
 def iris_center(landmarks: np.ndarray, side: str) -> np.ndarray:
@@ -38,11 +39,34 @@ def eye_crop(
     return frame_bgr[y0:y1, x0:x1], (x0, y0)
 
 
-def detect_corneal_reflex(crop_gray: np.ndarray) -> tuple[float, float] | None:
+def detect_corneal_reflex(
+    crop_gray: np.ndarray,
+    center_xy: tuple[float, float] | None = None,
+    radius_px: float | None = None,
+) -> tuple[float, float] | None:
+    """Find the specular corneal reflex: the brightest compact blob.
+
+    When center_xy/radius_px are given (iris center and radius in crop coords),
+    the search is restricted to that disk — the physical reflex lies on the
+    cornea, and this keeps bright sclera/skin from polluting the centroid.
+    """
     if crop_gray.size == 0:
         return None
-    thresh = max(float(np.percentile(crop_gray, REFLEX_PERCENTILE)), REFLEX_MIN_INTENSITY)
-    ys, xs = np.nonzero(crop_gray >= thresh)
-    if len(xs) == 0:
+    search = crop_gray.astype(np.float32)
+    if center_xy is not None and radius_px is not None:
+        ys, xs = np.mgrid[0 : search.shape[0], 0 : search.shape[1]]
+        mask = (xs - center_xy[0]) ** 2 + (ys - center_xy[1]) ** 2 <= radius_px ** 2
+        if not mask.any():
+            return None
+        search = np.where(mask, search, 0.0)
+    peak = float(search.max())
+    if peak < REFLEX_MIN_INTENSITY:
         return None
-    return float(xs.mean()), float(ys.mean())
+    thresh = max(REFLEX_MIN_INTENSITY, peak - REFLEX_MAX_DELTA)
+    binary = (search >= thresh).astype(np.uint8)
+    n, labels, stats, centroids = cv2.connectedComponentsWithStats(binary)
+    if n < 2:
+        return None
+    largest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+    cx, cy = centroids[largest]
+    return float(cx), float(cy)
