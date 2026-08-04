@@ -62,6 +62,21 @@ report. Everything runs locally; the video never leaves the machine.
 | synthetic only | 0.928 | **0.237** | 0.382 |
 | synthetic + weakly-labeled real | 0.926 | **0.722** | 0.848 |
 
+**Test-retest repeatability** — the validation half that needs no clinician,
+and the one directly comparable to published tests:
+
+| test | acuity CoR (logMAR) |
+|---|---|
+| Peek Acuity | 0.033 |
+| ETDRS chart, normals | 0.11 |
+| DigiVis | 0.12 |
+| **VisionScreen** | **0.137** |
+| ETDRS chart with 1.00 D blur | 0.25 |
+
+Contrast CoR 0.034 log CS, alignment 0.65 PD. The referral call (acuity worse
+than 0.3 logMAR) flips between repeat sessions on 4.7% of subjects — down from
+10.0% before the trial budget was set from a repeatability sweep.
+
 **Battery accuracy** (120 simulated patients with realistic lapse rates):
 
 | test | result |
