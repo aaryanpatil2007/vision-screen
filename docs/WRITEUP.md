@@ -1,167 +1,294 @@
-# VisionScreen: Webcam-Based Vision Screening from a Guided Capture Protocol
+# VisionScreen: A Webcam Vision-Screening Battery with Physics-Constrained Learned Perception
 
-**Status:** research prototype · **Date:** 2026-08-04
+**Research prototype · 2026-08-04**
 
-> This is a screening signal only, not a diagnosis. See an optometrist for a
-> clinical evaluation. Nothing in this system is a medical device.
+> **This is a screening tool, not a diagnosis, and it does not replace an eye
+> exam.** It cannot measure intraocular pressure, examine the retina, or rule
+> out disease. All accuracy figures below are from synthetic and
+> weakly-labeled real benchmarks; the system has *not* been validated against
+> clinical measurement in human subjects.
 
-## 1. Overview
+---
 
-VisionScreen analyzes a guided webcam/phone recording of a person performing
-three on-screen tests and produces a screening report with per-test findings,
-each carrying a confidence tier (`measured` / `weak-signal` / `inconclusive`).
-The architecture is a **physics spine with learned perception**: clinically
-established geometric/optical relations perform the inversion to clinical
-quantities, while ML components (MediaPipe FaceLandmarker) handle perception.
-Capture-quality gates reject unusable frames and ask for a retake rather than
-ever emitting a low-confidence number.
+## 1. Summary
 
-Modules:
+VisionScreen administers a ten-part guided battery through a browser and
+webcam, then analyses the recording server-side to produce a screening report
+with per-test confidence tiers. It combines three layers:
 
-1. **Acuity + behavior** — tumbling-E staircase scored from keyed responses;
-   squint (eye-aspect-ratio), lean-in (interocular distance drift), and head
-   tilt flags from the video.
-2. **Alignment (strabismus)** — Hirschberg corneal-reflex asymmetry in prism
-   diopters + smooth-pursuit conjugacy while tracking an on-screen dot.
-3. **Photorefraction (refractive error)** — eccentric-photorefraction crescent
-   analysis of the red reflex in a dim room, inverting crescent geometry to
-   defocus in diopters with sphere / cylinder / axis decomposition.
+1. **Psychophysics** — clinically specified stimuli (logMAR optotypes,
+   Pelli-Robson contrast triplets, astigmatic dial, Amsler grid,
+   pseudoisochromatic plates) rendered at calibrated angular size.
+2. **Physics** — closed-form clinical inversions: the Hirschberg ratio for
+   ocular alignment, and the eccentric-photorefraction relation for refractive
+   error.
+3. **Learned perception** — a small U-Net that segments iris, pupil and
+   corneal reflex, trained on domain-randomized synthetic eyes *plus* weakly
+   labeled real webcam eyes.
 
-## 2. Methods
+The central empirical result is that layer 3 is not optional: **a network
+trained only on synthetic eyes scores 0.919 mIoU on synthetic data but 0.241
+on real eyes.** Adding weakly-labeled real data closes most of that gap
+(0.691 real mIoU) with no loss on synthetic.
 
-### 2.1 Perception
+---
 
-MediaPipe FaceLandmarker (Tasks API, 478 landmarks incl. iris) supplies eye
-corners and iris rings. Empirically pinned index mapping (regression-tested):
-iris center 468 pairs with corners 33/133; 473 with 362/263. Pixel→mm scale
-uses the population-stable horizontal visible iris diameter (HVID ≈ 11.7 mm).
-The corneal specular reflex is segmented as the brightest connected component
-*restricted to the iris disk* — unmasked detection provably fails (bright
-sclera pollutes the centroid; caught by our benchmark, §3.2).
+## 2. Test battery
 
-### 2.2 Acuity
+| # | Test | Quantity produced | Basis |
+|---|---|---|---|
+| 1-3 | Visual acuity — binocular, right, left | logMAR + Snellen | Bailey-Lovie/ETDRS logMAR progression; tumbling-E, 1-down/2-up staircase |
+| 4 | Contrast sensitivity | log CS | Pelli-Robson triplets, 0.15 log steps, 2-of-3 rule |
+| 5 | Astigmatism | minus-cylinder axis (deg) | Astigmatic fan / clock dial, "rule of 30" |
+| 6 | Color vision | red-green flag, protan/deutan lean | Pseudoisochromatic plates along confusion lines |
+| 7 | Central field | metamorphopsia / scotoma marks | Amsler grid, 20° subtense, 1° squares |
+| 8 | Ocular motility | pursuit gain, saccade rate | Smooth pursuit + H-pattern saccades |
+| 9 | Alignment | deviation in prism diopters | Hirschberg corneal reflex asymmetry |
+| 10 | Pupil response | constriction %, latency, asymmetry | Light reflex; RAPD as inter-eye asymmetry |
+| 11 | Refractive error | sphere / cylinder / axis (D) | Eccentric photorefraction |
 
-Letter size for logMAR L at distance d: the optotype subtends `5·10^L` arcmin,
-so height = `2d·tan(2.5·10^L arcmin)`. A 1-down/2-up staircase (start 1.0,
-floor −0.3, ceiling 1.3) terminates after 6 reversals — but never before 12
-trials, a guard that halved benchmark error by preventing early-lapse reversal
-clusters from ending the test near its starting level. Threshold = smallest
-level with majority-correct performance over ≥ 2 trials.
+Behavioural signals (squinting, lean-in, head tilt) are extracted from the
+video throughout and reported alongside.
 
-### 2.3 Alignment
+**Not possible without hardware, and stated as such in the product:**
+intraocular pressure, slit-lamp examination, dilated fundus examination,
+objective retinoscopy, formal perimetry, OCT. A normal screening result here
+does not exclude glaucoma, diabetic retinopathy, or macular disease.
 
-Hirschberg: reflex decentration (mm, via HVID scale) asymmetry between eyes
-converts at ≈ 18 prism diopters per mm (literature range 15–22 PD/mm).
-Symmetric decentration is deliberately not flagged (shared offset = camera
-geometry, not strabismus). Flags: asymmetry ≥ 1.0 mm (≈ 18 PD); borderline
-note ≥ 0.5 mm. Pursuit conjugacy = inter-eye Pearson correlation of
-normalized iris positions while tracking a sinusoidal dot; flag < 0.8.
+---
 
-### 2.4 Photorefraction
+## 3. Methods
 
-Eccentric-photorefraction model (Bobier & Braddick, 1985): for defocus
-`A = refractive error − 1/d` (relative to the camera plane), flash
-eccentricity `e`, camera distance `d`, pupil radius `r`, the bright-reflex
-extent from the flash-side pupil edge is `w = 2r − e/(d·|A|)`, clipped to
-[0, 2r]; `w = 0` defines the dead zone `|A| < e/(2rd)` (≈ 1.25 D at e = 5 mm,
-d = 0.5 m, 2r = 8 mm). Crescent side encodes myopic vs hyperopic sign.
-Meridional profiling at 5° steps within ±60° of the flash axis, with an exact
-chord-depth-to-width correction, feeds a linearized fit of
-`|A|(θ) = S + C·sin²(θ − axis)` (cos 2θ/sin 2θ least squares). For myopic
-eyes the fitted parameters are remapped (`S = −(S_fit + C_fit)`, axis − 90°)
-— an algebraic identity of the absolute-value profile. Per-frame estimates
-are aggregated by median; the tier requires inter-frame σ(S) ≤ 0.75 D.
+### 3.1 Angular calibration
 
-### 2.5 Quality gates and honesty rules
+Every psychophysical stimulus needs true angular size, which requires the
+display's pixel pitch. The app uses an ISO/IEC 7810 ID-1 card (85.60 mm wide)
+as a physical ruler: the user scales an on-screen rectangle to match a real
+card, yielding px/cm directly. Viewing distance is entered explicitly. A
+logMAR-*L* optotype then subtends 5·10^L arcmin:
 
-Per-frame gates: face present, interocular ≥ 60 px, brightness in [30, 225]
-(photorefraction segment instead **requires** dim: [5, 90]). Modules never
-emit numbers below their evidence tier: metrics are suppressed for
-inconclusive findings and every report carries the screening disclaimer.
+    height_cm = 2 · d · tan(2.5·10^L arcmin)
 
-## 3. Results (synthetic benchmarks, fully reproducible)
+The browser and server implement this identically; a test asserts bit-level
+agreement between the two so client rendering can never silently drift from
+server scoring.
 
-Run: `python -m benchmarks.bench_module1` (2, 3). JSON in `results/`.
+### 3.2 Perception
 
-### 3.1 Module 1 — acuity recovery (50 simulated observers, 5% lapse rate)
+MediaPipe FaceLandmarker (Tasks API, 478 landmarks including iris ring)
+provides face geometry and a validated iris circle. Pixel→mm scale comes from
+the horizontal visible iris diameter (HVID ≈ 11.7 mm), which is stable across
+adults to within a few percent.
 
-| metric | value |
-|---|---|
-| mean abs error | **0.063 logMAR** |
-| max abs error | 0.20 logMAR |
+**EyeSegNet** is a 3-level U-Net (<600k parameters by design, so it runs
+per-frame on CPU inside the analyzer loop) predicting five classes:
+background, ocular surface, iris, pupil, corneal reflex.
 
-Under one chart line of error on average; the max improved 0.877 → 0.20 after
-the minimum-trials staircase guard.
+### 3.3 Training data
 
-### 3.2 Module 2 — Hirschberg deviation (0–2 mm asymmetry × noise seeds)
+*Synthetic (domain randomized).* A generator renders eye crops with randomized
+iris/pupil geometry, iris texture, skin and sclera tone, eyelid aperture,
+lashes, gaze offset, illumination gradient, exposure, blur, sensor noise, and —
+critically — **distractor speculars placed off-cornea**, the exact confounder
+that breaks threshold-based reflex detection.
 
-| metric | value |
-|---|---|
-| detection rate | 1.00 |
-| mean abs error | **0.60 PD** |
-| max abs error | 1.18 PD |
+*Real (weakly labeled).* Real webcam-style face images were downloaded from
+openly redistributable Hugging Face datasets (GazeCapture-derived frames;
+close-up pupil-position crops), plus openly licensed clinical images from
+Wikimedia Commons, all with per-item provenance recorded. These carry gaze
+targets but no segmentation masks, so labels are derived from two priors:
 
-Clinically meaningful strabismus is ≳ 10 PD; measurement error is an order of
-magnitude below the signal. This benchmark caught a real bug during
-development: unmasked reflex detection read 14.6 PD mean error (sclera
-pollution); iris-disk masking brought it to 0.60 PD.
+* **Geometric** — MediaPipe's iris circle defines the iris disk.
+* **Photometric** — *within that disk*, the pupil is the dark mode (Otsu) and
+  the corneal reflex the bright mode.
 
-### 3.3 Module 3 — photorefraction (S ∈ ±[1.5, 4] D, C ∈ {0, 1, 2} D)
+Crops are **rejected** rather than mislabeled when the priors disagree: the
+pupil must be concentric with the iris, occupy 2–75% of the disk, and be at
+least 12 grey levels darker than the surrounding iris annulus; blown-out crops
+(>35% saturated) are dropped. That last rule was added after inspection showed
+spectacle glare being labeled as pupil. Acceptance rate: **56.7%** (1,154
+labeled crops from 2,036 candidates) — the rejected fraction is reported, not
+hidden.
 
-| condition | detection | mean abs SE error | max | mean axis error |
-|---|---|---|---|---|
-| clean | 1.00 | **0.063 D** | 0.64 D | 32° |
-| noise σ=25 | 1.00 | 0.064 D | 0.67 D | 33° |
+### 3.4 Clinical inversions
 
-Spherical-equivalent recovery is robust to heavy sensor noise. Axis error is
-large — expected: a single flash axis observes meridians only within ±60°,
-so near-perpendicular axes are weakly constrained (§4).
+**Hirschberg.** Reflex decentration relative to iris centre converts to
+deviation at ≈18 prism diopters per mm (literature range 15–22). Only the
+*asymmetry between eyes* is flagged; a shared offset is camera geometry and
+angle kappa, not strabismus.
 
-## 4. Limitations (read before trusting anything)
+**Eccentric photorefraction** (Bobier & Braddick). With defocus `A` relative to
+the camera plane, flash eccentricity `e`, distance `d` and pupil radius `r`,
+the bright crescent extends `w = 2r − e/(d·|A|)` from the flash-side pupil
+edge, giving a dead zone `|A| < e/(2rd)` ≈ 1.25 D for this geometry. Meridional
+profiling at 5° steps feeds a linearized cos2θ/sin2θ fit of
+`|A|(θ) = S + C·sin²(θ − axis)`.
 
-1. **No real-eye validation.** All accuracy numbers are on synthetic data
-   generated from the same optical model the measurement inverts — they
-   validate the *pipeline*, not real-world performance. The renderer-measurer
-   round trip is not independent evidence. First real test: point the demo at
-   a person with a known prescription.
-2. **Dead zone.** Refractive errors within ≈ ±1.25 D of the screen distance
-   are invisible to this geometry — reported honestly as such.
-3. **Axis observability.** One flash axis → weak astigmatism-axis constraint
-   (~33° error). Fix: second capture with a rotated flash band.
-4. **Webcam reality.** Laptop screens are weak flashes; consumer sensors may
-   not resolve the red reflex at all in many rooms. The dim-room gate and
-   inconclusive tier handle this honestly, but yield will vary.
-5. **Hirschberg κ-angle.** Individual angle-kappa differences add a few PD of
-   inter-eye baseline; the symmetric-offset rule absorbs the shared part only.
-6. **Population constants.** HVID (11.7 mm) and pupil/iris ratio (0.35) are
-   population means; per-subject deviation propagates ~5–10% scale error.
+---
 
-## 5. Real-world reference data
+## 4. Results
 
-`python -m visionscreen.data.fetch_public` downloads openly licensed clinical
-example images (strabismus, esotropia/exotropia, red reflex, leukocoria,
-Hirschberg test) from Wikimedia Commons with full provenance
-(`data/real/commons/provenance.json`: title, URL, license, artist, search
-term). Current snapshot: 13 images (fetcher is resumable; Wikimedia rate limits politely respected). These are a qualitative reality-check
-set, not training data.
+All benchmarks are reproducible: `python -m benchmarks.<name>`; JSON in `results/`.
 
-## 6. Reproducing
+### 4.1 Sim-to-real transfer (the headline result)
 
-```
+| training data | synthetic mIoU | **real mIoU** | real pupil IoU |
+|---|---|---|---|
+| synthetic only | 0.919 | **0.241** | 0.367 |
+| synthetic + weakly-labeled real | 0.919 | **0.691** | 0.830 |
+
+Sim-to-real gap for synthetic-only training: **0.678 mIoU**. Adding real data
+recovers **+0.450**. Real corpus: 866 train / 288 held-out test, split before
+training (leakage checked and fixed during development).
+
+**Interpretation.** A model validated only on its own simulator would have
+reported 0.92 and been wrong about real eyes by a factor of four. Any
+photorefraction or alignment system reporting only synthetic accuracy should
+be read with this in mind.
+
+### 4.2 Battery performance on 120 simulated patients
+
+Virtual patients with ground-truth conditions and realistic lapse rates
+(2–10%), scored by the production modules:
+
+| test | metric | result |
+|---|---|---|
+| Visual acuity | mean absolute error | **0.077 logMAR** |
+| Visual acuity | within chart test-retest repeatability (0.15 logMAR) | **89.2%** |
+| Contrast sensitivity | mean absolute error | **0.168 log CS** (≈1 triplet step) |
+| Strabismus (≥10 PD) | sensitivity / specificity | **1.00 / 1.00** |
+| Color deficiency | sensitivity / specificity | **1.00 / 0.97** |
+| RAPD | sensitivity / specificity | **1.00 / 1.00** |
+| Astigmatism axis | mean absolute error | **4.8°** |
+| Photorefraction | mean absolute spherical-equivalent error | **0.029 D** |
+
+Clinical chart acuity has a published test-retest repeatability of roughly
+0.10–0.20 logMAR, so an 0.077 logMAR algorithmic error sits at the noise floor
+of the reference test itself. **This bounds the algorithm, not the system:**
+real-world error is dominated by user calibration and viewing distance, which
+these simulations do not model.
+
+### 4.3 Component benchmarks
+
+| component | metric | result |
+|---|---|---|
+| Hirschberg deviation | mean abs error | 0.60 PD (detection 100%) |
+| Photorefraction, clean | mean abs SE error | 0.063 D |
+| Photorefraction, σ=25 noise | mean abs SE error | 0.064 D |
+| Acuity staircase | mean abs error, 50 observers | 0.063 logMAR |
+
+### 4.4 Bugs the benchmarks caught
+
+Each of these was found by measurement, not inspection:
+
+1. **Unmasked reflex detection** — bright sclera polluted the centroid;
+   Hirschberg error 14.6 PD → 0.60 PD after restricting the search to the iris disk.
+2. **Staircase early termination** — early lapses clustered reversals near the
+   start level; max acuity error 0.877 → 0.20 logMAR after a minimum-trials guard.
+3. **Alignment threshold too high** — flagged at 18 PD when clinical
+   significance begins at 10 PD; sensitivity 0.73 → 1.00, specificity unchanged.
+4. **Contrast single-letter levels** — one lapse truncated the whole estimate;
+   proper Pelli-Robson triplets cut error 0.446 → 0.168 log CS.
+5. **Non-isochromatic color plates** — figure and background differed ~12 luma
+   units, so the numeral was readable as brightness; now luminance-matched.
+6. **Acuity floor reported as a point estimate** — a floor-clamped result now
+   reads "at or better than".
+7. **Data leakage in the sim-to-real benchmark** — real training initially
+   included the held-out split; caught before any number was published.
+
+### 4.5 Why real sessions failed before
+
+Analysis of the real corpus found that **only 10.5% of real webcam eye crops
+show a usable corneal reflex** under ordinary room lighting. This — not the
+algorithm — is why alignment returned "inconclusive" on real users. The
+capture protocol was changed so the pursuit target is a bright white disc on a
+dark field, making the test supply its own catchlight, as a clinical
+transilluminator does.
+
+---
+
+## 5. Limitations
+
+1. **No human clinical validation.** Nothing here has been compared against an
+   optometrist's measurement on the same eyes. Synthetic and weak-label
+   benchmarks bound the algorithm, not the system.
+2. **Weak labels are not ground truth.** Real IoU measures agreement with a
+   geometric/photometric reference, not with human annotation.
+3. **Display calibration.** Contrast and colour depend on uncalibrated display
+   gamma and gamut; colour vision is therefore capped at `weak-signal` and can
+   never return `measured`.
+4. **Distance is self-reported.** A 20% distance error is a ≈0.08 logMAR acuity
+   error — comparable to the entire algorithmic error budget.
+5. **Photorefraction dead zone.** Refractive errors within ≈±1.25 D of the
+   screen distance produce no crescent; reported honestly as such.
+6. **Astigmatism axis observability.** A single flash axis constrains meridians
+   only within ±60°; a second capture with a rotated flash band would fix this.
+7. **Screen flashes are weak.** Pupil amplitudes are not comparable to clinical
+   transilluminators; only inter-eye asymmetry is defensible.
+8. **Population constants.** HVID (11.7 mm) and pupil/iris ratio are population
+   means; individual deviation propagates 5–10% scale error.
+9. **Spectacles.** Lens reflections both hide the corneal glint and create
+   false speculars; a large share of crop rejections involve glasses.
+
+---
+
+## 6. What would make this clinically credible
+
+In priority order, the work that would actually move this from "research
+prototype" to "defensible screening instrument":
+
+1. **A human validation study.** 50+ subjects with same-day optometrist
+   measurement; report Bland-Altman mean difference and 95% limits of
+   agreement against chart acuity, autorefractor sphere/cylinder, and prism
+   cover test. This is the only number that matters and the only one absent.
+2. **Human-annotated eye masks** on a few hundred real crops, replacing weak
+   labels as the evaluation reference.
+3. **Automatic distance estimation** from interocular distance in pixels plus
+   the calibrated screen scale, removing self-reported distance.
+4. **Two-axis photorefraction** (rotated second flash) for axis observability.
+5. **Prospective sensitivity/specificity** for referral decisions against a
+   clinician's referral judgement, not against simulated ground truth.
+
+---
+
+## 7. Reproducing
+
+```bash
 python3.12 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-.venv/bin/python -m pytest            # 69 tests
-.venv/bin/python -m benchmarks.bench_module1
-.venv/bin/python -m benchmarks.bench_module2
-.venv/bin/python -m benchmarks.bench_module3
-.venv/bin/uvicorn webapp.app:app     # live demo at localhost:8000
+
+.venv/bin/python -m pytest                          # full suite
+
+# data (no auth required; provenance written alongside)
+.venv/bin/python -m visionscreen.data.hf_datasets --date 2026-08-04
+.venv/bin/python -m visionscreen.data.fetch_public
+.venv/bin/python -m visionscreen.data.build_real_corpus
+
+# training and benchmarks
+.venv/bin/python -m visionscreen.ml.train --n-train 12000 --epochs 20 --device mps
+.venv/bin/python -m benchmarks.bench_segmentation     # sim-to-real table
+.venv/bin/python -m benchmarks.bench_battery          # simulated-patient table
+.venv/bin/python -m benchmarks.bench_module1          # acuity
+.venv/bin/python -m benchmarks.bench_module2          # Hirschberg
+.venv/bin/python -m benchmarks.bench_module3          # photorefraction
+
+.venv/bin/uvicorn webapp.app:app --port 8000          # the app
 ```
 
-## 7. References
+---
 
-- Bobier, W.R. & Braddick, O.J. (1985). Eccentric photorefraction: optical
-  analysis and empirical measures. *Am J Optom Physiol Opt* 62(9).
-- Wheeler, M. (1943 tradition) / modern reviews of the Hirschberg test:
-  ~15–22 PD per mm of reflex decentration.
+## 8. References
+
 - Bailey, I.L. & Lovie, J.E. (1976). New design principles for visual acuity
-  letter charts (logMAR). *Am J Optom Physiol Opt* 53(11).
-- MediaPipe FaceLandmarker (Google, Tasks API) — 478-landmark face mesh.
+  letter charts. *Am J Optom Physiol Opt* 53(11):740-745.
+- Pelli, D.G., Robson, J.G. & Wilkins, A.J. (1988). The design of a new letter
+  chart for measuring contrast sensitivity. *Clin Vis Sci* 2(3):187-199.
+- Bobier, W.R. & Braddick, O.J. (1985). Eccentric photorefraction: optical
+  analysis and empirical measures. *Am J Optom Physiol Opt* 62(9):614-620.
+- Amsler, M. (1947). L'examen qualitatif de la fonction maculaire.
+  *Ophthalmologica* 114:248-261.
+- Hirschberg test ratio, ~15-22 prism diopters per mm of reflex decentration
+  (standard strabismus references).
+- Ishihara, S. Tests for Colour-Blindness — confusion-line design principles.
+- MediaPipe FaceLandmarker (Google), 478-landmark mesh with iris refinement.
+- Ronneberger, O., Fischer, P. & Brox, T. (2015). U-Net: convolutional networks
+  for biomedical image segmentation. *MICCAI*.
