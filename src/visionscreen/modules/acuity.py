@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 from visionscreen.report import Finding
 
@@ -13,6 +14,31 @@ from visionscreen.report import Finding
 STEP_DOWN = 0.1
 STEP_UP = 0.1 * 5 / 3           # 0.1667
 GUESS_RATE_4AFC = 0.25
+
+# Sloan letters are the ETDRS optotype itself, so using them removes the
+# tumbling-E equivalence term rather than correcting for it — the single
+# largest contributor to the acuity error budget (48% of variance, and a
+# -0.15 logMAR systematic offset). The task becomes 10-alternative, so the
+# guess rate falls to 0.10 and the staircase ratio must change to keep
+# converging on the guessing-corrected 50% point:
+#     raw p = 0.10 + 0.90/2 = 0.55  ->  S_up/S_down = 0.55/0.45 = 11/9
+GUESS_RATE_10AFC = 0.10
+STEP_UP_SLOAN = 0.1 * 11 / 9    # 0.1222
+SLOAN_LETTERS = ("C", "D", "H", "K", "N", "O", "R", "S", "V", "Z")
+
+
+@dataclass(frozen=True)
+class Optotype:
+    """A stimulus family, its guess rate, and its offset from the ETDRS chart."""
+    name: str
+    guess_rate: float
+    step_up: float
+    chart_offset_logmar: float   # add to convert a threshold to chart scale
+
+
+TUMBLING_E = Optotype("tumbling_e", GUESS_RATE_4AFC, STEP_UP, -0.15)
+SLOAN = Optotype("sloan", GUESS_RATE_10AFC, STEP_UP_SLOAN, 0.0)
+OPTOTYPES = {o.name: o for o in (TUMBLING_E, SLOAN)}
 # Trial budget set from a measured repeatability sweep, not convenience. The
 # coefficient of repeatability (1.96 x SD of repeat differences) falls with
 # trials and plateaus around 60:
@@ -79,9 +105,11 @@ def renderable_floor_logmar(distance_cm: float, px_per_cm: float,
 
 
 class Staircase:
-    def __init__(self, start_logmar: float = 1.0, floor: float = -0.3, ceiling: float = 1.3):
+    def __init__(self, start_logmar: float = 1.0, floor: float = -0.3,
+                 ceiling: float = 1.3, optotype: Optotype = TUMBLING_E):
         self._level = start_logmar
         self._floor, self._ceiling = floor, ceiling
+        self.optotype = optotype
         self._last_correct: bool | None = None
         self._reversals: list[float] = []
         self._trials = 0
@@ -106,7 +134,8 @@ class Staircase:
         # are scaled together so S_up/S_down — and therefore the convergence
         # criterion — is unchanged; only the terminal quantization shrinks.
         scale = 0.5 if len(self._reversals) >= STEP_HALVING_AFTER_REVERSALS else 1.0
-        delta = (-STEP_DOWN if correct else STEP_UP) * scale
+        step_up = self.optotype.step_up
+        delta = (-STEP_DOWN if correct else step_up) * scale
         self._level = min(self._ceiling, max(self._floor, self._level + delta))
 
     def threshold(self) -> float | None:
@@ -116,7 +145,10 @@ class Staircase:
         return sum(tail) / len(tail)
 
 
-def score_trials(trials: list[dict], display_floor: float | None = None) -> Finding:
+def score_trials(trials: list[dict], display_floor: float | None = None,
+                 optotype: Optotype | str = TUMBLING_E) -> Finding:
+    if isinstance(optotype, str):
+        optotype = OPTOTYPES[optotype]
     n = len(trials)
     if n < 8:
         return Finding(
@@ -183,16 +215,22 @@ def score_trials(trials: list[dict], display_floor: float | None = None) -> Find
     # against the chart everyone actually compares to — the largest single term
     # in the error budget, and correctable exactly because it is known.
     raw = threshold
-    chart_equivalent = threshold + ETDRS_OFFSET_LOGMAR
+    chart_equivalent = threshold + optotype.chart_offset_logmar
     metrics["logmar"] = round(chart_equivalent, 2)
     metrics["logmar_raw_tumbling_e"] = round(raw, 2)
-    metrics["optotype_correction_logmar"] = ETDRS_OFFSET_LOGMAR
+    metrics["optotype"] = optotype.name
+    metrics["optotype_correction_logmar"] = optotype.chart_offset_logmar
 
     summary = summary.replace(f"{raw:.2f} logMAR", f"{chart_equivalent:.2f} logMAR")
     if not display_limited and not (raw <= floor + 1e-9 and raw <= -0.25):
+        scale_note = (
+            "measured directly with ETDRS letters"
+            if optotype.chart_offset_logmar == 0.0
+            else "adjusted to letter-chart scale"
+        )
         summary = (
             f"Estimated acuity {chart_equivalent:.2f} logMAR "
-            f"({snellen_hint(chart_equivalent)}), adjusted to letter-chart scale."
+            f"({snellen_hint(chart_equivalent)}), {scale_note}."
         )
 
     return Finding(module="acuity", summary=summary, tier=tier, metrics=metrics)

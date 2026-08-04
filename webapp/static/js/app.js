@@ -11,7 +11,7 @@ import {
   DIRS, SLOAN, letterHeightPx, drawTumblingE, contrastToGray,
   drawAstigmaticDial, drawAmsler, drawColorPlate, mulberry32,
   drawRDS, disparityArcsec, drawWorthDots,
-  renderableFloorLogmar, displayCeilingLogCS,
+  renderableFloorLogmar, displayCeilingLogCS, drawSloanLetter,
 } from "./stimuli.js";
 
 const PLATES = [
@@ -180,18 +180,25 @@ class App {
 
   // ---------- tests ----------
 
-  async runAcuity(eyeLabel, testId) {
+  async runAcuity(eyeLabel, testId, optotype = "sloan") {
     this.setStep(testId);
     const cover = eyeLabel === "both" ? "Keep both eyes open."
       : `Cover your ${eyeLabel === "right" ? "LEFT" : "RIGHT"} eye with your palm.`;
     await this.prompt(
       `Visual acuity — ${eyeLabel === "both" ? "both eyes" : eyeLabel + " eye"}`,
-      `${cover} Press the arrow key pointing the same way as the E's open side.
-       The letters shrink as you get them right. Guess if unsure.`,
+      optotype === "sloan"
+        ? `${cover} Type the letter you see, then it will shrink. Letters come from
+           C D H K N O R S V Z. Guess if unsure — guessing is expected.`
+        : `${cover} Press the arrow key pointing the same way as the E's open side.
+           The letters shrink as you get them right. Guess if unsure.`,
     );
 
     const seg = this.session.open(testId);
     this.session.log(seg, "cover", { eye: eyeLabel });
+    this.session.log(seg, "optotype", { name: optotype });
+    // Sloan is a 10-alternative task, so the staircase ratio differs to keep
+    // converging on the guessing-corrected 50% point (11/9 vs 5/3).
+    const STEP_UP_FOR = { sloan: 0.1 * 11 / 9, tumbling_e: 0.1 * 5 / 3 };
     let logmar = 1.0, trials = 0, reversals = 0, lastCorrect = null;
     // budget matched to the server's measured repeatability sweep:
     // 60 trials puts test-retest CoR at 0.113 logMAR, the level of the
@@ -204,26 +211,40 @@ class App {
     this.session.log(seg, "display_floor", { logmar: floorLogmar });
     // Kaernbach weighted up-down targeting the guessing-corrected 50% point
     // for a 4-alternative task: S_up / S_down = 5/3.
-    const STEP_DOWN = 0.1, STEP_UP = 0.1 * 5 / 3, HALVE_AFTER = 2;
+    const STEP_DOWN = 0.1, STEP_UP = STEP_UP_FOR[optotype], HALVE_AFTER = 2;
 
     while (trials < MAX && !(trials >= MIN_TRIALS && reversals >= MAX_REV)) {
-      const dir = DIRS[Math.floor(this.rng() * 4)];
       const px = letterHeightPx(logmar, this.session.distanceCm, this.session.pxPerCm);
+      const isSloan = optotype === "sloan";
+      const shown = isSloan
+        ? SLOAN[Math.floor(this.rng() * SLOAN.length)]
+        : DIRS[Math.floor(this.rng() * 4)];
+      const keypad = isSloan
+        ? `<div class="sub" style="color:#444">Type the letter, or press SPACE if you cannot read it</div>`
+        : `<div class="keypad">
+             <div class="spacer"></div><button data-key="up">↑</button><div class="spacer"></div>
+             <button data-key="left">←</button><button data-key="down">↓</button><button data-key="right">→</button>
+           </div>`;
       const st = this.stage(`
-        <div class="instruction">${cover} Which way does the E point?</div>
+        <div class="instruction">${cover} ${isSloan ? "Which letter is this?" : "Which way does the E point?"}</div>
         <canvas id="opto" width="520" height="520" style="max-width:80vw"></canvas>
-        <div class="keypad">
-          <div class="spacer"></div><button data-key="up">↑</button><div class="spacer"></div>
-          <button data-key="left">←</button><button data-key="down">↓</button><button data-key="right">→</button>
-        </div>`, { white: true });
+        ${keypad}`, { white: true });
       const c = st.querySelector("#opto");
       const ctx = c.getContext("2d");
       ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
-      drawTumblingE(ctx, c.width / 2, c.height / 2, Math.max(px, 4), dir);
+      if (isSloan) {
+        drawSloanLetter(ctx, c.width / 2, c.height / 2, Math.max(px, 4), shown);
+      } else {
+        drawTumblingE(ctx, c.width / 2, c.height / 2, Math.max(px, 4), shown);
+      }
 
-      const answer = await this.waitKey(DIRS);
-      const correct = answer === dir;
-      this.session.log(seg, "trial", { logmar: +logmar.toFixed(2), shown: dir, answered: answer });
+      const answer = await this.waitKey(
+        isSloan ? [...SLOAN.map((l) => l.toLowerCase()), " "] : DIRS);
+      const correct = isSloan
+        ? answer.toUpperCase() === shown
+        : answer === shown;
+      this.session.log(seg, "trial",
+                       { logmar: +logmar.toFixed(2), shown, answered: answer });
       if (lastCorrect !== null && correct !== lastCorrect) reversals++;
       lastCorrect = correct;
       // step halves once the run has bracketed threshold; the up/down RATIO

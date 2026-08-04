@@ -157,3 +157,36 @@ def test_staircase_uses_the_full_budget_when_needed():
         n += 1
     assert n >= 20, "terminated before the minimum trial count"
     assert n <= MAX_TRIALS
+
+
+def test_sloan_removes_the_chart_conversion():
+    """Sloan letters ARE the ETDRS optotype, so no equivalence offset applies —
+    which removes the largest single term from the acuity error budget."""
+    from visionscreen.modules.acuity import SLOAN, TUMBLING_E
+
+    trials = [{"logmar": 0.3, "shown": "C", "answered": "C"} for _ in range(20)]
+    f = score_trials(trials, optotype=SLOAN)
+    assert f.metrics["optotype"] == "sloan"
+    assert f.metrics["optotype_correction_logmar"] == 0.0
+    assert f.metrics["logmar"] == pytest.approx(0.3, abs=0.01)
+    assert "ETDRS letters" in f.summary
+    assert TUMBLING_E.chart_offset_logmar == pytest.approx(-0.15)
+
+
+def test_both_optotypes_converge_at_corrected_fifty_percent():
+    """Different guess rates need different step ratios to target the same
+    psychophysical criterion: 5/3 for 4AFC, 11/9 for 10AFC."""
+    from visionscreen.modules.acuity import OPTOTYPES, corrected_convergence
+
+    for opt in OPTOTYPES.values():
+        c = corrected_convergence(opt.step_up, 0.1, opt.guess_rate)
+        assert c == pytest.approx(0.50, abs=1e-3), (opt.name, c)
+
+
+def test_staircase_uses_the_optotype_step():
+    from visionscreen.modules.acuity import SLOAN, Staircase
+
+    s = Staircase(optotype=SLOAN)
+    start = s.current()
+    s.record(False)
+    assert s.current() - start == pytest.approx(SLOAN.step_up, abs=1e-9)

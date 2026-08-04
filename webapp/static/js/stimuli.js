@@ -247,3 +247,22 @@ export function displayCeilingLogCS(background = 255, bits = 8, gamma = 2.2) {
   const fgLin = Math.pow((background - 1) / maxCode, gamma);
   return -Math.log10((bgLin - fgLin) / bgLin);
 }
+
+/**
+ * Sloan letter at a specified overall height. Sloan optotypes are built on the
+ * same 5x5 grid as the tumbling E (stroke = 1/5 of height), which is what makes
+ * the critical detail one arcminute at logMAR 0. Using them removes the
+ * tumbling-E-to-chart conversion entirely: this IS the ETDRS optotype.
+ */
+export function drawSloanLetter(ctx, cx, cy, sizePx, letter) {
+  ctx.save();
+  ctx.fillStyle = "#000";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  // Sloan is a fixed-width font on a 5x5 grid; approximate with a heavy
+  // monospace and scale so the cap height equals the requested size.
+  const CAP_RATIO = 0.72;
+  ctx.font = `bold ${sizePx / CAP_RATIO}px "Courier New", monospace`;
+  ctx.fillText(letter, cx, cy + sizePx / 2);
+  ctx.restore();
+}

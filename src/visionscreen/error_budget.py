@@ -49,7 +49,8 @@ ACUITY_TERMS: tuple[Term, ...] = (
     Term(
         "optotype equivalence", -0.15, 0.05, "literature",
         "tumbling E reads ~0.15 logMAR conservative vs ETDRS Sloan letters "
-        "(Landolt C -0.12 vs ETDRS; tumbling E -0.05 vs Landolt C)",
+        "(Landolt C -0.12 vs ETDRS; tumbling E -0.05 vs Landolt C). ELIMINATED "
+        "in Sloan mode, which presents the ETDRS optotype itself.",
         correctable=True,
     ),
     Term(
@@ -103,6 +104,41 @@ def dominant_terms(terms: tuple[Term, ...], top: int = 3) -> list[tuple[str, flo
         key=lambda kv: -kv[1],
     )
     return [(n, round(f, 3)) for n, f in ranked[:top] if f > 0]
+
+
+SLOAN_TERMS: tuple[Term, ...] = tuple(
+    t for t in ACUITY_TERMS if t.name != "optotype equivalence"
+) + (
+    Term(
+        "staircase estimation (Sloan)", 0.0, 0.039, "measured",
+        "10AFC Sloan measured CoR 0.109 logMAR against tumbling E's 0.130; a "
+        "lower guess rate leaves less to estimate through",
+    ),
+)
+
+
+def sloan_budget() -> dict:
+    """The same budget with Sloan letters, which remove the equivalence term."""
+    terms = tuple(t for t in SLOAN_TERMS if t.name != "staircase estimation")
+    combined = combine(terms, apply_corrections=True)
+    return {
+        "measure": "acuity_logmar (Sloan / ETDRS optotype)",
+        "with_known_corrections_applied": combined,
+        "without_corrections": combined,
+        "dominant_variance_terms": dominant_terms(terms),
+        "acceptance": {"max_abs_bias": ACCEPTANCE_BIAS,
+                       "max_loa_half_width": ACCEPTANCE_LOA},
+        "terms": [
+            {"name": t.name, "bias": t.bias_logmar, "sd": round(t.sd_logmar, 4),
+             "provenance": t.provenance, "correctable": t.correctable,
+             "note": t.note}
+            for t in terms
+        ],
+        "caveat": (
+            "A budget predicts agreement from components that were measured or "
+            "cited; it cannot reveal a bias nobody enumerated."
+        ),
+    }
 
 
 def acuity_budget() -> dict:
@@ -170,9 +206,13 @@ def main() -> None:
     from pathlib import Path
 
     b = acuity_budget()
+    sb = sloan_budget()
     Path("results").mkdir(exist_ok=True)
-    Path("results/error_budget.json").write_text(json.dumps(b, indent=2))
+    Path("results/error_budget.json").write_text(
+        json.dumps({"tumbling_e": b, "sloan": sb}, indent=2))
     print(format_budget(b))
+    print("\n" + "=" * 70 + "\n")
+    print(format_budget(sb))
 
 
 if __name__ == "__main__":

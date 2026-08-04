@@ -282,7 +282,11 @@ def analyze_session(video_path: Path, meta: SessionMeta,
             continue
         trials = [ev.payload for ev in s.events if ev.kind == "trial"]
         floor = renderable_floor_logmar(meta.distance_cm, meta.px_per_cm)
-        f = score_trials(trials, display_floor=floor)
+        optotype = next(
+            (ev.payload.get("name") for ev in s.events if ev.kind == "optotype"),
+            "tumbling_e",
+        )
+        f = score_trials(trials, display_floor=floor, optotype=optotype)
         if test_id != "acuity":
             f.module = f"Acuity ({label})"
 

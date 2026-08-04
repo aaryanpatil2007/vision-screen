@@ -490,6 +490,68 @@ test interexaminer agreement is about ±5 PD).
 and perfectly wrong — repeatability bounds the noise, not the bias. Only
 comparison against a clinician bounds the bias, and that study remains unrun.
 
+### 4.4e Bounding the bias without a clinician: an error budget
+
+Repeatability bounds noise. Bias needs the reference instrument — or a budget:
+enumerate every term that can shift or scatter the result, quantify each from
+measurement where possible, and combine. It is a prediction, not a validation,
+but it does two things a validation cannot do in advance: it says whether the
+design is *capable* of meeting the bar, and it says which term to attack.
+
+| term | bias | SD | provenance |
+|---|---|---|---|
+| optotype rendering | +0.004 | 0.004 | **measured in-browser** |
+| optotype equivalence | −0.150 | 0.050 | literature |
+| screen scale calibration | 0 | 0.005 | assumed |
+| viewing distance | 0 | 0.015 | literature |
+| staircase estimation | 0 | 0.049 | **measured** |
+| threshold criterion | 0 | 0 | **measured** |
+
+**It found a systematic bias the repeatability work could not.** Publishing the
+raw tumbling-E threshold would read **−0.146 logMAR** against an ETDRS chart —
+about 1.5 lines, failing the 0.05 acceptance bar — because tumbling E is a
+conservative optotype relative to Sloan letters. Nothing about the test's
+self-consistency would ever have revealed this; it is invisible without an
+external scale. The headline value now carries the known correction and the raw
+threshold is retained alongside it.
+
+The rendering term is itself newly measured rather than assumed: the drawn
+optotype is rasterised in a real browser across 20–320 px and its ink measured,
+confirming the 5×5 construction holds to 10% and that rendering contributes
+under 0.01 logMAR mean.
+
+**Attacking the dominant term.** With the correction applied, optotype
+equivalence still contributed **48% of the remaining variance** — its ±0.05
+literature uncertainty. That term does not have to exist: Sloan letters *are*
+the ETDRS optotype, so presenting them removes the conversion instead of
+correcting for it. Doing so changes the task from 4-alternative to
+10-alternative, which drops the guess rate from 0.25 to 0.10 and therefore
+requires a different staircase ratio (11/9 rather than 5/3) to keep converging
+on the same guessing-corrected 50% criterion.
+
+Measured, the change helps twice over:
+
+| optotype | test-retest CoR | estimator MAE |
+|---|---|---|
+| tumbling E (4AFC) | 0.130 logMAR | 0.032 |
+| **Sloan (10AFC)** | **0.109 logMAR** | **0.026** |
+
+| predicted agreement | bias | 95% LoA |
+|---|---|---|
+| tumbling E, corrected | +0.004 | −0.137 to +0.145 |
+| **Sloan** | **+0.004** | **−0.079 to +0.087** |
+
+For scale, that predicted interval is tighter than DigiVis's measured ±0.173
+and than the ETDRS chart's own test-retest range of ±0.11. Sloan is now the
+default; tumbling E remains available for non-readers, where the conversion is
+applied and stated.
+
+**What a budget cannot do.** It combines the terms someone thought to
+enumerate. A bias nobody listed — a systematic error in how users self-report
+distance, a population the optotype behaves differently for — would not appear
+anywhere in it. That is exactly what comparison against a clinician is for, and
+it remains unrun.
+
 ### 4.5 Why real sessions failed before
 
 Analysis of the real corpus found that **only 10.8% of real webcam eye crops
