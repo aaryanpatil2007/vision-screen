@@ -1,6 +1,6 @@
 # VisionScreen
 
-A webcam-based **vision screening battery** — ten guided tests in a browser,
+A webcam-based **vision screening battery** — thirteen guided tests in a browser,
 analysed with clinical physics and a purpose-trained segmentation network.
 
 > **Screening tool, not a diagnosis.** It cannot measure eye pressure, examine
@@ -90,8 +90,8 @@ All sources are openly downloadable without credentials, and every item is
 logged with its URL, license, and fetch date. Real images carry gaze targets
 but no masks, so labels come from geometric (MediaPipe iris circle) and
 photometric (dark pupil / bright reflex within that circle) priors, with
-disagreeing crops **rejected** rather than mislabeled — currently a 62%
-acceptance rate over ~4,700 candidate crops.
+disagreeing crops **rejected** rather than mislabeled — a 54% acceptance rate
+yielding 6,130 labeled crops from 5,980 source images.
 
 ## Training and benchmarks
 
