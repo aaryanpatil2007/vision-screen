@@ -6,6 +6,7 @@ from visionscreen.report import Finding
 
 STEP_DOWN, STEP_UP = 0.1, 0.2
 MAX_TRIALS, MAX_REVERSALS = 30, 6
+MIN_TRIALS = 12  # don't let early-lapse reversal clusters end the test
 
 
 def letter_height_px(logmar: float, distance_cm: float, px_per_cm: float) -> float:
@@ -27,7 +28,9 @@ class Staircase:
 
     @property
     def done(self) -> bool:
-        return len(self._reversals) >= MAX_REVERSALS or self._trials >= MAX_TRIALS
+        if self._trials >= MAX_TRIALS:
+            return True
+        return self._trials >= MIN_TRIALS and len(self._reversals) >= MAX_REVERSALS
 
     def record(self, correct: bool) -> None:
         if self.done:
