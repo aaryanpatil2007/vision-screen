@@ -12,7 +12,7 @@
 
 ## 1. Summary
 
-VisionScreen administers a ten-part guided battery through a browser and
+VisionScreen administers a thirteen-part guided battery through a browser and
 webcam, then analyses the recording server-side to produce a screening report
 with per-test confidence tiers. It combines three layers:
 
@@ -27,9 +27,9 @@ with per-test confidence tiers. It combines three layers:
    labeled real webcam eyes.
 
 The central empirical result is that layer 3 is not optional: **a network
-trained only on synthetic eyes scores 0.919 mIoU on synthetic data but 0.241
+trained only on synthetic eyes scores 0.927 mIoU on synthetic data but 0.241
 on real eyes.** Adding weakly-labeled real data closes most of that gap
-(0.691 real mIoU) with no loss on synthetic.
+(0.705 real mIoU) with no loss on synthetic.
 
 ---
 
@@ -47,7 +47,8 @@ on real eyes.** Adding weakly-labeled real data closes most of that gap
 | 10 | Alignment | deviation in prism diopters | Hirschberg corneal reflex asymmetry |
 | 11 | Pupil response | constriction %, anisocoria | Binocular light reflex |
 | 12 | Refractive error | sphere / cylinder / axis (D) | Eccentric photorefraction |
-| — | Viewing distance | cm, drift, acuity bias | Pinhole model on interocular span |
+| 13 | Binocular fusion | fusion / suppression / diplopia | Worth four-dot, near and distance |
+| — | Viewing distance | cm, drift, acuity bias | Pinhole model on iris diameter |
 
 Behavioural signals (squinting, lean-in, head tilt) are extracted from the
 video throughout and reported alongside.
