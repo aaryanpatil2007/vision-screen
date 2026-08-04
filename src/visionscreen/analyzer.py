@@ -167,14 +167,17 @@ def analyze_session(video_path: Path, meta: SessionMeta) -> list[Finding]:
                 rolls.append(head_roll_deg(lm))
 
                 if in_align:
-                    dec_l = _eye_decentration(frame, lm, "left")
-                    dec_r = _eye_decentration(frame, lm, "right")
+                    # gaze needs only iris tracking; Hirschberg also needs the
+                    # corneal reflex — collect them independently
                     gl, gr = _gaze_x(lm, "left"), _gaze_x(lm, "right")
-                    if dec_l and dec_r and gl is not None and gr is not None:
-                        align_frames.append(AlignmentFrame(dec_l, dec_r))
+                    if gl is not None and gr is not None:
                         gaze_l.append(gl)
                         gaze_r.append(gr)
                         align_ts.append(ts)
+                    dec_l = _eye_decentration(frame, lm, "left")
+                    dec_r = _eye_decentration(frame, lm, "right")
+                    if dec_l and dec_r:
+                        align_frames.append(AlignmentFrame(dec_l, dec_r))
     finally:
         cap.release()
 
@@ -193,11 +196,16 @@ def analyze_session(video_path: Path, meta: SessionMeta) -> list[Finding]:
             retakes=["Run the dot-following test segment."],
         )
     else:
-        align_valid = (len(align_frames) / align_total) if align_total else 0.0
         pursuit = None
         dot_xs = _dot_positions(align_seg, align_ts)
         if dot_xs:
             pursuit = pursuit_conjugacy(gaze_l, gaze_r, dot_xs)
+        if align_frames:
+            align_valid = (len(align_frames) / align_total) if align_total else 0.0
+        else:
+            # no reflex anywhere: judge validity by gaze coverage so a usable
+            # pursuit result isn't discarded as "inconclusive"
+            align_valid = (len(gaze_l) / align_total) if align_total else 0.0
         alignment = score_alignment(align_frames, pursuit, align_valid)
 
     if pr_seg is None:

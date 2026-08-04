@@ -72,3 +72,19 @@ def test_nonconjugate_pursuit_flagged():
 
 def test_too_few_samples_returns_none():
     assert pursuit_conjugacy([0.1] * 5, [0.1] * 5, [0.1] * 5) is None
+
+
+def test_static_dot_returns_none():
+    # a dot that never moved cannot measure pursuit — must not flag anything
+    assert pursuit_conjugacy(sinusoid(), sinusoid(), [0.5] * 60) is None
+
+
+def test_pursuit_only_when_reflex_missing():
+    # real webcams often lose the corneal reflex; pursuit must survive alone
+    dot = sinusoid()
+    res = pursuit_conjugacy(sinusoid(), sinusoid(), dot)
+    f = score_alignment([], res, valid_fraction=0.9)
+    assert f.tier == "weak-signal"
+    assert f.metrics["conjugacy"] > 0.99
+    assert "poor pursuit conjugacy" not in f.metrics["flags"]
+    assert "Hirschberg" in f.summary  # explains what was skipped and why

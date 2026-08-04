@@ -38,6 +38,13 @@ def make_trials(n: int, logmar: float = 0.3) -> list[dict]:
     return [{"logmar": logmar, "shown": "up", "answered": "up"} for _ in range(n)]
 
 
+def test_floor_reported_as_at_or_better():
+    trials = make_trials(20, logmar=-0.3)  # perfect run down at the floor
+    f = score_trials(trials)
+    assert "at or better than" in f.summary
+    assert f.metrics["logmar"] == -0.3
+
+
 def test_score_trials_tiers():
     assert score_trials(make_trials(20)).tier == "measured"
     assert score_trials(make_trials(10)).tier == "weak-signal"

@@ -53,6 +53,8 @@ def pursuit_conjugacy(
     if n < MIN_PURSUIT_SAMPLES:
         return None
     gl, gr, d = (np.asarray(s[:n], float) for s in (gaze_left, gaze_right, dot_x))
+    if d.std() < 1e-6:
+        return None  # the dot never moved — pursuit is unmeasurable, not bad
 
     def corr(a: np.ndarray, b: np.ndarray) -> float:
         if a.std() < 1e-9 or b.std() < 1e-9:
@@ -77,11 +79,30 @@ def score_alignment(
 ) -> Finding:
     tier = _tier(valid_fraction)
     if tier == "inconclusive" or not per_frame:
+        # Hirschberg needs the corneal reflex; pursuit only needs iris tracking.
+        # A real webcam often loses the reflex — report pursuit on its own.
+        if pursuit is not None:
+            flags = ["poor pursuit conjugacy"] if pursuit.conjugacy < CONJUGACY_FLAG else []
+            summary = (
+                ("Pursuit conjugacy is reduced — eyes did not track together. "
+                 if flags else "Both eyes tracked the target together normally. ")
+                + "Corneal reflex was not measurable, so the Hirschberg check was skipped "
+                "(try again with a lamp in front of you)."
+            )
+            return Finding(
+                module="alignment",
+                summary=summary,
+                tier="weak-signal",
+                metrics={"flags": flags, "conjugacy": round(pursuit.conjugacy, 3)},
+            )
         return Finding(
             module="alignment",
             summary="Too few usable frames to assess eye alignment.",
             tier="inconclusive",
-            retakes=["Re-record the dot-following test with your face well lit and steady."],
+            retakes=[
+                "Re-record the dot-following test with your face well lit and steady.",
+                "Place a lamp in front of you (behind the screen) so a light glint is visible on your eyes.",
+            ],
         )
 
     med_l = tuple(

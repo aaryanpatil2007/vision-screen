@@ -72,9 +72,17 @@ def score_trials(trials: list[dict]) -> Finding:
             threshold = lv
             break
     tier = "measured" if n >= 15 else "weak-signal"
+    floor = min(levels)
+    if threshold <= floor + 1e-9 and threshold <= -0.25:
+        summary = (
+            f"Acuity at or better than {threshold:.2f} logMAR — the test floor "
+            "was reached, so true acuity may be even better."
+        )
+    else:
+        summary = f"Estimated acuity {threshold:.2f} logMAR"
     return Finding(
         module="acuity",
-        summary=f"Estimated acuity {threshold:.2f} logMAR",
+        summary=summary,
         tier=tier,
         metrics={"logmar": round(threshold, 2), "trials": n},
     )
