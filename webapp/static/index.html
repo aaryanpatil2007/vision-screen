@@ -1,139 +1,116 @@
 <!doctype html>
-<html>
-<head><meta charset="utf-8"><title>Vision Screening</title>
-<style>
-  body { font-family: system-ui; max-width: 640px; margin: 2rem auto; text-align: center; }
-  #letter { font-weight: bold; line-height: 1; user-select: none; }
-  .rot-up { display: inline-block; transform: rotate(-90deg); }
-  .rot-down { display: inline-block; transform: rotate(90deg); }
-  .rot-left { display: inline-block; transform: rotate(180deg); }
-  .rot-right { display: inline-block; }
-  #video { width: 160px; position: fixed; right: 1rem; bottom: 1rem; }
-  #dot { width: 24px; height: 24px; border-radius: 50%; background: #d33;
-         position: fixed; top: 40%; left: 0; display: none; }
-  #flashband { position: fixed; top: 0; left: 0; right: 0; height: 15vh;
-               background: #fff; display: none; }
-  body.dark { background: #000; color: #666; }
-</style></head>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>VisionScreen — webcam vision screening</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
 <body>
-<h1>Vision Screening</h1>
-<p>Sit about 50 cm from the screen. When the letter E appears, press the arrow key
-matching the direction its prongs point. 20 letters total.</p>
-<button id="start">Start test</button>
-<div id="letter"></div>
-<div id="dot"></div>
-<div id="flashband"></div>
-<video id="video" autoplay muted></video>
-<script>
-const DIRS = ["up", "down", "left", "right"];
-// CSS px per cm (font-size is CSS px, so devicePixelRatio must NOT appear here);
-// 96 CSS px/inch is nominal — a card-width calibration step would refine this.
-const DISTANCE_CM = 50, PX_PER_CM = 96 / 2.54;
-const CAP_HEIGHT_EM = 0.7;  // an "E" glyph is ~0.7 em tall; scale font-size up
-let events = [], recorder, chunks = [], startTs = 0;
-let logmar = 1.0, trial = 0, shown = null;
-const N_TRIALS = 20;
 
-async function begin() {
-  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-  document.getElementById("video").srcObject = stream;
-  recorder = new MediaRecorder(stream);
-  recorder.ondataavailable = e => chunks.push(e.data);
-  recorder.start();
-  startTs = performance.now();
-  document.getElementById("start").hidden = true;
-  nextTrial();
-}
+<div class="chrome">
+<header class="topbar">
+  <div class="logo"><span class="iris"></span> VisionScreen</div>
+  <div class="spacer"></div>
+  <span class="pill">research prototype</span>
+</header>
 
-async function nextTrial() {
-  if (trial >= N_TRIALS) return runPursuit();
-  shown = DIRS[Math.floor(Math.random() * DIRS.length)];
-  const r = await fetch(`/config?logmar=${logmar}&distance_cm=${DISTANCE_CM}&px_per_cm=${PX_PER_CM}`);
-  const { letter_px } = await r.json();
-  const el = document.getElementById("letter");
-  el.style.fontSize = `${Math.max(letter_px / CAP_HEIGHT_EM, 4)}px`;
-  el.innerHTML = `<span class="rot-${shown}">E</span>`;
-}
+<main>
+  <div id="railwrap" hidden>
+    <div class="rail" id="rail"></div>
+    <div class="rail-labels" id="railLabels"></div>
+  </div>
 
-document.addEventListener("keydown", e => {
-  const key = e.key.replace("Arrow", "").toLowerCase();
-  if (!shown || !DIRS.includes(key)) return;
-  const correct = key === shown;
-  events.push({ ts: (performance.now() - startTs) / 1000, kind: "trial",
-                payload: { logmar, shown, answered: key } });
-  logmar = Math.min(1.3, Math.max(-0.3, logmar + (correct ? -0.1 : 0.2)));
-  trial += 1; shown = null;
-  nextTrial();
-});
+  <section id="intro">
+    <div class="card">
+      <h1>Comprehensive vision screening</h1>
+      <p class="lead">
+        A guided ten-part battery covering visual acuity (both eyes and each eye alone),
+        contrast sensitivity, astigmatism, color vision, the central visual field,
+        eye alignment and tracking, pupil light response, and a photorefraction
+        estimate of refractive error. It takes about 10 minutes and runs entirely
+        on this machine — your video is analyzed locally and never leaves it.
+      </p>
+      <div class="disclaimer">
+        This is a screening tool, not a diagnosis, and it does not replace an eye exam.
+        It cannot check eye pressure, examine the retina, or detect many diseases.
+        Anything it flags — and any symptom it misses — should be taken to an optometrist.
+      </div>
+    </div>
 
-const PURSUIT_S = 10;
-let dotEvents = [], acuityEnd = 0;
+    <div class="card">
+      <h2>1 · Camera</h2>
+      <p class="hint" id="camStatus">
+        Grant camera access. Sit facing a light source, not with a window behind you.
+      </p>
+      <div style="margin:16px 0">
+        <button class="primary" id="btnCamera">Enable camera</button>
+      </div>
+      <div class="gaze-panel">
+        <div class="camwrap" id="camPanel">
+          <video id="cam" playsinline muted></video>
+          <canvas id="overlay"></canvas>
+          <div class="camstat">
+            <span class="chip" id="chipFace">no face</span>
+            <span class="chip" id="chipEye">–</span>
+            <span class="chip" id="chipLight">–</span>
+            <span class="chip" id="chipFps">–</span>
+          </div>
+        </div>
+        <div class="metrics">
+          <div class="metric"><div class="k">gaze position</div><div class="v" id="mGaze">–</div></div>
+          <div class="metric"><div class="k">iris radius</div><div class="v" id="mIris">–</div></div>
+          <div class="metric"><div class="k">eye symmetry</div><div class="v" id="mSym">–</div></div>
+        </div>
+      </div>
+    </div>
 
-function runPursuit() {
-  acuityEnd = (performance.now() - startTs) / 1000;
-  document.getElementById("letter").hidden = true;
-  const dot = document.getElementById("dot");
-  dot.style.display = "block";
-  const w = window.innerWidth - 24, t0 = performance.now();
-  let lastLog = 0;
-  function step(now) {
-    const t = (now - t0) / 1000;
-    if (t >= PURSUIT_S) { dot.style.display = "none"; return runPhotoref(); }
-    const x = 0.5 + 0.4 * Math.sin(2 * Math.PI * t / 4);  // slow sweep
-    dot.style.left = `${x * w}px`;
-    if (now - lastLog > 100) {
-      lastLog = now;
-      dotEvents.push({ ts: (now - startTs) / 1000, kind: "dot", payload: { x } });
-    }
-    requestAnimationFrame(step);
-  }
-  document.querySelector("p").textContent =
-    "Now follow the red dot with your eyes only — keep your head still.";
-  requestAnimationFrame(step);
-}
+    <div class="card">
+      <h2>2 · Calibrate your screen</h2>
+      <p class="hint">
+        Hold a credit card (or any ID card) against the screen and drag until the
+        outline matches its width exactly. This converts letter sizes to real
+        angles — without it, acuity numbers are meaningless.
+      </p>
+      <div id="cardBox" style="height:54px;border:2px dashed var(--accent);border-radius:9px;margin:16px 0"></div>
+      <input type="range" id="cardSlider" min="180" max="560" value="323" style="width:100%">
+      <p class="hint" style="margin-top:8px">
+        Scale: <strong id="pxPerCm">37.8</strong> px/cm (card is 8.56 cm wide)
+      </p>
+    </div>
 
-const PHOTOREF_S = 6;
-let photorefEvents = [], pursuitEnd = 0;
+    <div class="card">
+      <h2>3 · Viewing distance</h2>
+      <p class="hint">
+        Measure roughly how far your eyes are from the screen and set it here.
+        Keep this distance for the whole test.
+      </p>
+      <div style="display:flex;align-items:center;gap:14px;margin-top:14px">
+        <input type="range" id="distance" min="30" max="100" value="50" style="flex:1">
+        <span class="v" style="font-family:var(--mono);font-size:18px">
+          <span id="distanceVal">50</span> cm</span>
+      </div>
+    </div>
 
-function runPhotoref() {
-  pursuitEnd = (performance.now() - startTs) / 1000;
-  document.body.classList.add("dark");
-  document.querySelector("p").textContent =
-    "Dim the room lights. Look just below the camera and hold still.";
-  const band = document.getElementById("flashband");
-  photorefEvents.push({ ts: pursuitEnd, kind: "photoref_config",
-                        payload: { e_m: 0.005, d_m: DISTANCE_CM / 100 } });
-  setTimeout(() => {
-    band.style.display = "block";
-    setTimeout(() => {
-      band.style.display = "none";
-      document.body.classList.remove("dark");
-      finish();
-    }, PHOTOREF_S * 1000);
-  }, 2000);
-}
+    <div class="card">
+      <h2>4 · Before you start</h2>
+      <div class="grid2">
+        <p class="hint">• Wear your usual glasses or contacts only if you want your
+          <em>corrected</em> vision tested — otherwise remove them.</p>
+        <p class="hint">• Set screen brightness to maximum for the contrast and color tests.</p>
+        <p class="hint">• You'll be asked to cover one eye at a time — use your palm, not your fingers.</p>
+        <p class="hint">• The last two tests need a dark room. You can dim the lights when prompted.</p>
+      </div>
+      <div style="margin-top:20px">
+        <button class="primary" id="btnStart" disabled>Begin screening</button>
+      </div>
+    </div>
+  </section>
+</main>
+</div>
 
-async function finish() {
-  recorder.stop();
-  await new Promise(res => recorder.onstop = res);
-  const endTs = (performance.now() - startTs) / 1000;
-  const meta = JSON.stringify({
-    session_id: crypto.randomUUID(), px_per_cm: PX_PER_CM,
-    distance_cm: DISTANCE_CM, fps: 30,
-    segments: [
-      { test_id: "acuity", start_ts: 0, end_ts: acuityEnd || endTs, events },
-      { test_id: "alignment", start_ts: acuityEnd || 0, end_ts: pursuitEnd || endTs, events: dotEvents },
-      { test_id: "photoref", start_ts: pursuitEnd || 0, end_ts: endTs, events: photorefEvents },
-    ],
-  });
-  const form = new FormData();
-  form.append("video", new Blob(chunks, { type: "video/webm" }), "session.webm");
-  form.append("meta", meta);
-  const resp = await fetch("/analyze", { method: "POST", body: form });
-  document.open(); document.write(await resp.text()); document.close();
-}
+<div class="stage" id="stage"></div>
 
-document.getElementById("start").addEventListener("click", begin);
-</script>
+<script type="module" src="/static/js/app.js"></script>
 </body>
 </html>

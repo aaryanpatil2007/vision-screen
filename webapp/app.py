@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Form, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from visionscreen.analyzer import analyze_session
 from visionscreen.modules.acuity import letter_height_px
@@ -13,6 +14,7 @@ from visionscreen.report import render_html
 
 STATIC = Path(__file__).parent / "static"
 app = FastAPI(title="Vision Screening")
+app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
 @app.get("/")
