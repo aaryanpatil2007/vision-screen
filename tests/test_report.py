@@ -78,10 +78,14 @@ def test_contrast_finding_includes_bar():
 
 
 def test_inconclusive_has_no_visual():
+    """No chart on a finding with no result — scoped to the finding itself,
+    since the page chrome legitimately carries an SVG logo mark."""
     fs = [Finding("Acuity (left eye)", "x", "inconclusive", {"logmar": 0.3},
                   ["retake"])]
     html = render_html(fs, "s")
-    assert "<svg" not in html
+    finding = html[html.index("<section class='finding"):]
+    assert "<svg" not in finding
+    assert "scale" not in finding
 
 
 def test_module_names_are_human_readable():

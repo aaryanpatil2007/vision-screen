@@ -4,13 +4,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>VisionScreen — webcam vision screening</title>
+<meta name="description" content="A thirteen-part vision screening battery that runs in your browser and analyses your webcam locally.">
+<link rel="preload" href="/static/fonts/instrument-serif.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/karla.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body>
 
 <div class="chrome">
 <header class="topbar">
-  <div class="logo"><span class="iris"></span> VisionScreen</div>
+  <div class="logo">
+    <svg class="iris-mark" viewBox="0 0 26 26" aria-hidden="true">
+      <circle class="r2" cx="13" cy="13" r="12"/>
+      <circle class="r1" cx="13" cy="13" r="8"/>
+      <circle class="pupil" cx="13" cy="13" r="3.4"/>
+    </svg>
+    VisionScreen
+  </div>
   <div class="spacer"></div>
   <span class="pill">research prototype</span>
 </header>
@@ -22,122 +32,225 @@
   </div>
 
   <section id="intro">
-    <div class="card">
-      <h1>Comprehensive vision screening</h1>
-      <p class="lead">
-        A guided battery of thirteen tests: visual acuity (both eyes and each eye
-        alone), contrast sensitivity, astigmatism, color vision, the central visual
-        field, depth perception, binocular fusion, eye tracking and alignment,
-        pupil response, and a photorefraction estimate of focus. It takes about
-        15 minutes and runs entirely on this machine — your video is analyzed
-        locally and never leaves it.
-      </p>
-      <div class="disclaimer">
+
+    <!-- ---------------------------------------------------------- hero -- -->
+    <div class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">thirteen tests · fifteen minutes · analysed locally</p>
+        <h1 class="display">Your eyes,<br>measured in<br><em>the dark.</em></h1>
+        <p class="lede">
+          A vision screening battery that runs entirely in this browser. It reads
+          letters, contrast, colour, depth and the central field — then watches your
+          eyes through the webcam to measure alignment, tracking, pupil response and
+          the focus of your own retina.
+          <strong>Nothing leaves this machine.</strong>
+        </p>
+        <div class="stat-row">
+          <div class="stat"><b>0.109</b><span>logMAR repeatability</span></div>
+          <div class="stat"><b>1.09</b><span>prism dioptres, alignment</span></div>
+          <div class="stat"><b>268</b><span>tests passing</span></div>
+        </div>
+        <p style="margin-top:2.4rem">
+          <a href="#begin" style="text-decoration:none"><button class="primary">Begin the screening →</button></a>
+        </p>
+      </div>
+
+      <div class="hero-figure">
+        <svg class="iris-big" viewBox="0 0 400 400" aria-label="Diagram of an iris with meridian spokes">
+          <!-- meridian spokes: the astigmatic dial's own geometry -->
+          <g>
+            <line class="spoke" x1="200" y1="30"  x2="200" y2="370"/>
+            <line class="spoke" x1="30"  y1="200" x2="370" y2="200"/>
+            <line class="spoke" x1="80"  y1="80"  x2="320" y2="320"/>
+            <line class="spoke" x1="320" y1="80"  x2="80"  y2="320"/>
+            <line class="spoke" x1="115" y1="45"  x2="285" y2="355"/>
+            <line class="spoke" x1="285" y1="45"  x2="115" y2="355"/>
+            <line class="spoke" x1="45"  y1="115" x2="355" y2="285"/>
+            <line class="spoke" x1="45"  y1="285" x2="355" y2="115"/>
+          </g>
+          <circle class="ring" cx="200" cy="200" r="170" stroke-width="0.75"/>
+          <circle class="ring" cx="200" cy="200" r="146" stroke-width="0.75"/>
+          <circle class="limbus" cx="200" cy="200" r="118"/>
+          <circle class="ring" cx="200" cy="200" r="96" stroke-width="1"/>
+          <circle class="ring" cx="200" cy="200" r="74" stroke-width="1"/>
+          <circle class="pupil-fill" cx="200" cy="200" r="52"/>
+          <circle class="limbus" cx="200" cy="200" r="52" stroke-width="1.1"/>
+          <!-- the corneal catchlight the alignment test depends on -->
+          <circle class="glint" cx="222" cy="178" r="7"/>
+          <circle class="glint" cx="222" cy="178" r="13" opacity="0.16"/>
+          <!-- measurement crosshair -->
+          <line class="crosshair" x1="200" y1="160" x2="200" y2="240"/>
+          <line class="crosshair" x1="160" y1="200" x2="240" y2="200"/>
+          <!-- a scanning arc, the instrument at work -->
+          <circle class="sweep" cx="200" cy="200" r="134"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------------- battery -- -->
+    <section class="section">
+      <div class="section-head">
+        <span class="section-num">01</span>
+        <h2>What it measures</h2>
+      </div>
+      <div class="battery">
+        <div class="test-card"><div class="tc-num">01 — 03</div><h3>Visual acuity</h3>
+          <p>ETDRS Sloan letters on a staircase, both eyes and each eye alone.</p>
+          <div class="tc-out">logMAR + Snellen</div></div>
+        <div class="test-card"><div class="tc-num">04</div><h3>Contrast</h3>
+          <p>Pelli-Robson triplets fading toward the background, 0.15 log steps.</p>
+          <div class="tc-out">log CS</div></div>
+        <div class="test-card"><div class="tc-num">05</div><h3>Astigmatism</h3>
+          <p>A sunburst dial: one meridian looks sharper when the cornea is not round.</p>
+          <div class="tc-out">minus-cylinder axis</div></div>
+        <div class="test-card"><div class="tc-num">06</div><h3>Colour</h3>
+          <p>Pseudoisochromatic plates, luminance-matched so only hue carries the figure.</p>
+          <div class="tc-out">red-green screen</div></div>
+        <div class="test-card"><div class="tc-num">07</div><h3>Central field</h3>
+          <p>An Amsler grid at 20°, marking anywhere the lines wave or vanish.</p>
+          <div class="tc-out">metamorphopsia · scotoma</div></div>
+        <div class="test-card"><div class="tc-num">08</div><h3>Depth</h3>
+          <p>Dynamic random-dot stereograms with zero-disparity catch trials.</p>
+          <div class="tc-out">arcseconds</div></div>
+        <div class="test-card"><div class="tc-num">09</div><h3>Fusion</h3>
+          <p>The Worth four-dot, near and far, to find a suppressing eye.</p>
+          <div class="tc-out">fusion · suppression · diplopia</div></div>
+        <div class="test-card"><div class="tc-num">10</div><h3>Eye movement</h3>
+          <p>Smooth pursuit and an H-pattern of saccades, tracked from video.</p>
+          <div class="tc-out">gain · catch-up saccades</div></div>
+        <div class="test-card"><div class="tc-num">11</div><h3>Alignment</h3>
+          <p>Hirschberg: where the catchlight sits on each cornea, to a millimetre.</p>
+          <div class="tc-out">prism dioptres</div></div>
+        <div class="test-card"><div class="tc-num">12</div><h3>Pupils</h3>
+          <p>The light reflex, measured frame by frame as the screen flashes.</p>
+          <div class="tc-out">constriction · anisocoria</div></div>
+        <div class="test-card"><div class="tc-num">13</div><h3>Refraction</h3>
+          <p>Eccentric photorefraction — the crescent in your own red reflex.</p>
+          <div class="tc-out">sphere · cylinder · axis</div></div>
+        <div class="test-card"><div class="tc-num">—</div><h3>Viewing distance</h3>
+          <p>Tracked continuously from iris diameter, and used to correct your acuity.</p>
+          <div class="tc-out">centimetres</div></div>
+      </div>
+
+      <div class="notice" style="margin-top:2rem">
         <strong>A screening tool, not an eye exam.</strong>
         It cannot measure eye pressure, see your retina, or rule out disease. In one
-        study of adults who considered themselves healthy (median age 70), about one
-        in three had a finding at a full eye exam that a test like this cannot
+        study of adults who considered themselves healthy, about <strong>one in
+        three</strong> had a finding at a full exam that a test like this cannot
         detect. Use it to decide whether to book an exam — never to skip one.
         It issues no prescription and makes no diagnosis.
       </div>
-      <p class="hint" style="margin-top:14px">
-        Two tests need <strong>red-cyan 3-D glasses</strong> (red lens over your right
-        eye). Without them, depth perception and binocular fusion will be skipped —
-        everything else still works.
-      </p>
-    </div>
+    </section>
 
-    <div class="card">
-      <h2>1 · Camera</h2>
-      <p class="hint" id="camStatus">
-        Grant camera access. Sit facing a light source, not with a window behind you.
-      </p>
-      <div style="margin:16px 0">
-        <button class="primary" id="btnCamera">Enable camera</button>
+    <!-- --------------------------------------------------------- setup -- -->
+    <section class="section" id="begin">
+      <div class="section-head">
+        <span class="section-num">02</span>
+        <h2>Set up</h2>
       </div>
-      <div class="gaze-panel">
-        <div class="camwrap" id="camPanel">
-          <video id="cam" playsinline muted></video>
-          <canvas id="overlay"></canvas>
-          <div class="camstat">
-            <span class="chip" id="chipFace">no face</span>
-            <span class="chip" id="chipEye">–</span>
-            <span class="chip" id="chipLight">–</span>
-            <span class="chip" id="chipFps">–</span>
+
+      <div class="card">
+        <div class="step-label">Step one</div>
+        <h2>Camera</h2>
+        <p class="hint" id="camStatus" style="margin-top:0">
+          Grant camera access. Sit facing a light source — not with a window behind you.
+        </p>
+        <p style="margin:1.4rem 0"><button class="primary" id="btnCamera">Enable camera</button></p>
+
+        <div class="viewport-wrap">
+          <div class="camwrap" id="camPanel">
+            <video id="cam" playsinline muted></video>
+            <canvas id="overlay"></canvas>
+            <div class="camstat">
+              <span class="chip" id="chipFace">no face</span>
+              <span class="chip" id="chipEye">–</span>
+              <span class="chip" id="chipLight">–</span>
+              <span class="chip" id="chipFps">–</span>
+            </div>
+          </div>
+          <div class="metrics">
+            <div class="metric"><div class="k">gaze</div><div class="v" id="mGaze">–</div></div>
+            <div class="metric"><div class="k">iris radius</div><div class="v" id="mIris">–</div></div>
+            <div class="metric"><div class="k">symmetry</div><div class="v" id="mSym">–</div></div>
           </div>
         </div>
-        <div class="metrics">
-          <div class="metric"><div class="k">gaze position</div><div class="v" id="mGaze">–</div></div>
-          <div class="metric"><div class="k">iris radius</div><div class="v" id="mIris">–</div></div>
-          <div class="metric"><div class="k">eye symmetry</div><div class="v" id="mSym">–</div></div>
-        </div>
       </div>
-    </div>
 
-    <div class="card">
-      <h2>2 · Calibrate your screen</h2>
-      <p class="hint">
-        Hold a credit card (or any ID card) against the screen and drag until the
-        outline matches its width exactly. This converts letter sizes to real
-        angles — without it, acuity numbers are meaningless.
-      </p>
-      <div id="cardBox" style="height:54px;border:2px dashed var(--accent);border-radius:9px;margin:16px 0"></div>
-      <input type="range" id="cardSlider" min="180" max="560" value="323" style="width:100%">
-      <p class="hint" style="margin-top:8px">
-        Scale: <strong id="pxPerCm">37.8</strong> px/cm (card is 8.56 cm wide)
-      </p>
-    </div>
-
-    <div class="card">
-      <h2>3 · Viewing distance</h2>
-      <p class="hint">
-        Measure roughly how far your eyes are from the screen and set it here.
-        Keep this distance for the whole test.
-      </p>
-      <div style="display:flex;align-items:center;gap:14px;margin-top:14px">
-        <input type="range" id="distance" min="30" max="100" value="50" style="flex:1">
-        <span class="v" style="font-family:var(--mono);font-size:18px">
-          <span id="distanceVal">50</span> cm</span>
+      <div class="card">
+        <div class="step-label">Step two</div>
+        <h2>Calibrate the screen</h2>
+        <p class="hint">
+          Hold a bank card against the display and drag until the outline matches its
+          width exactly. Every letter size in this test is an angle, and an angle needs
+          to know how big your pixels really are — without this, acuity is meaningless.
+        </p>
+        <div id="cardBox" style="height:56px;border:1px dashed var(--amber);margin:1.4rem 0 0"></div>
+        <input type="range" id="cardSlider" min="180" max="560" value="323">
+        <p class="hint" style="margin:0">
+          Scale <strong id="pxPerCm" style="font-family:var(--mono)">37.8</strong> px/cm
+          &nbsp;·&nbsp; card is 8.56 cm wide (ISO/IEC 7810)
+        </p>
       </div>
-    </div>
 
-    <div class="card">
-      <h2>4 · Screen brightness</h2>
-      <p class="hint">
-        Turn your screen brightness up to at least 75%. Acuity standards specify
-        80–320 cd/m²; at a laptop's minimum brightness people measure about
-        1.3 lines worse than they really are, which is enough to invent a problem
-        that isn't there. The browser cannot read your brightness, so this one is
-        on you.
-      </p>
-      <div style="margin-top:14px">
-        <label class="hint" style="display:flex;gap:10px;align-items:center;cursor:pointer">
+      <div class="card">
+        <div class="step-label">Step three</div>
+        <h2>Viewing distance</h2>
+        <p class="hint">
+          Roughly how far are your eyes from the screen? Keep it for the whole test —
+          the camera tracks it and corrects your result if you drift.
+        </p>
+        <input type="range" id="distance" min="30" max="100" value="50">
+        <p class="hint" style="margin:0">
+          <strong id="distanceVal" style="font-family:var(--mono);font-size:1.1rem">50</strong> cm
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="step-label">Step four</div>
+        <h2>Screen brightness</h2>
+        <p class="hint">
+          Turn brightness to at least 75%. Acuity standards call for 80–320 cd/m²; at a
+          laptop's dimmest setting people measure about <strong>1.3 lines worse</strong>
+          than they really are — enough to invent a problem that isn't there. The browser
+          cannot read your brightness, so this one is on you.
+        </p>
+        <label class="hint" style="display:flex;gap:0.7rem;align-items:center;cursor:pointer;margin-top:1.2rem">
           <input type="checkbox" id="brightnessOk">
           I have set my screen brightness to 75% or higher
         </label>
+        <p class="hint" style="margin:1.2rem 0 0">
+          Every step below should be distinguishable. If the dark end is one black block,
+          raise the brightness.
+        </p>
+        <div id="grayRamp" class="gray-ramp"></div>
       </div>
-      <p class="hint" style="margin-top:14px">
-        The bar below should look like a smooth gradient with every step
-        distinguishable. If the dark end is a single black block, raise brightness.
-      </p>
-      <div id="grayRamp" style="display:flex;height:34px;margin-top:8px;border-radius:8px;overflow:hidden"></div>
-    </div>
 
-    <div class="card">
-      <h2>5 · Before you start</h2>
-      <div class="grid2">
-        <p class="hint">• Wear your usual glasses or contacts only if you want your
-          <em>corrected</em> vision tested — otherwise remove them.</p>
-        <p class="hint">• Set screen brightness to maximum for the contrast and color tests.</p>
-        <p class="hint">• You'll be asked to cover one eye at a time — use your palm, not your fingers.</p>
-        <p class="hint">• The last two tests need a dark room. You can dim the lights when prompted.</p>
+      <div class="card">
+        <div class="step-label">Step five</div>
+        <h2>Before you start</h2>
+        <div class="grid2" style="margin-top:1.2rem">
+          <p class="hint">Wear your usual glasses or contacts only if you want your
+            <em>corrected</em> vision tested — otherwise take them off.</p>
+          <p class="hint">Two tests need <strong>red-cyan 3-D glasses</strong>, red lens
+            over the right eye. Without them, depth and fusion are skipped.</p>
+          <p class="hint">You'll cover one eye at a time — use your palm, not your fingers.</p>
+          <p class="hint">The last two tests need a dark room. You can dim the lights
+            when prompted.</p>
+        </div>
+        <p style="margin:2rem 0 0"><button class="primary" id="btnStart" disabled>Begin screening</button></p>
       </div>
-      <div style="margin-top:20px">
-        <button class="primary" id="btnStart" disabled>Begin screening</button>
-      </div>
-    </div>
+    </section>
   </section>
 </main>
+
+<footer class="foot">
+  <p style="max-width:70ch;margin:0">
+    Research prototype — not FDA-cleared and not a medical device. It issues no
+    prescription and makes no diagnosis. Results describe visual function measured
+    on this screen at this moment, and are not a substitute for a comprehensive eye
+    examination by a licensed professional.
+  </p>
+</footer>
 </div>
 
 <div class="stage" id="stage"></div>

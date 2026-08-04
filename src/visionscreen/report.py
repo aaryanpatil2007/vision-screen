@@ -87,6 +87,20 @@ _METRIC_LABELS = {
     "constriction_pct": "Constriction (%)",
     "latency_s": "Response latency (s)",
     "samples": "Samples",
+    "optotype": "Optotype",
+    "threshold_arcsec": "Stereo threshold (arcsec)",
+    "display_floor_arcsec": "Finest this screen can show (arcsec)",
+    "catch_trials": "Catch trials",
+    "near_response": "Near response",
+    "far_response": "Distance response",
+    "suppressing_eye": "Suppressed eye",
+    "anisocoria_mm": "Pupil size difference (mm)",
+    "expected_error_pd": "Expected error (PD)",
+    "asymmetry_dispersion_mm": "Frame-to-frame spread (mm)",
+    "display_ceiling_log_cs": "Faintest this screen can show (log CS)",
+    "display_floor_logmar": "Finest letter this screen can draw (logMAR)",
+    "logmar_raw_tumbling_e": "Raw threshold (logMAR)",
+    "optotype_correction_logmar": "Chart-scale correction (logMAR)",
 }
 
 # Display names for modules whose internal ids are snake_case.
@@ -268,32 +282,59 @@ def _css() -> str:
     path = Path(__file__).resolve().parents[2] / "webapp" / "static" / "css" / "app.css"
     base = path.read_text() if path.exists() else ""
     return base + """
-    main.report { max-width: 860px; margin: 0 auto; padding: 28px 22px 90px; }
-    .banner { border-radius: 14px; padding: 20px 22px; margin: 0 0 22px; border: 1px solid; }
-    .banner h3 { margin: 0 0 6px; font-size: 18px; }
-    .banner p { margin: 0; font-size: 14px; line-height: 1.55; }
-    .banner .counts { margin-top: 10px; opacity: .75; font-size: 12.5px; }
-    .banner.good { background: rgba(56,211,159,.08); border-color: rgba(56,211,159,.35); color: var(--good); }
-    .banner.warn { background: rgba(255,183,77,.08); border-color: rgba(255,183,77,.35); color: var(--warn); }
-    .banner.urgent { background: rgba(255,107,107,.10); border-color: rgba(255,107,107,.4); color: var(--bad); }
-    .finding-head { display:flex; align-items:center; gap:12px; margin-bottom:8px; }
-    .finding-head h2 { margin:0; font-size:16.5px; text-transform: capitalize; }
-    .finding p { margin: 0 0 4px; font-size: 14px; line-height: 1.6; color: var(--text); }
-    .finding .urgent { color: var(--bad); font-weight: 600; margin-top: 8px; }
-    .retake-title { color: var(--muted); font-size: 13px; margin-top: 10px; }
-    .finding ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; line-height:1.6; }
-    .legend { display:flex; gap:18px; flex-wrap:wrap; margin: 26px 0 0; color: var(--muted); font-size:12.5px; }
-    .legend b { color: var(--text); }
-    .actions { margin-top: 28px; display:flex; gap:12px; }
-    .scale { color: var(--muted); margin: 10px 0 2px; display:block; }
-    .caveat { color: var(--muted); font-size: 12.5px; margin-top: 10px;
-              border-left: 2px solid var(--line); padding-left: 10px; }
-    .footnote { color: var(--muted); font-size: 12px; line-height: 1.6;
-                margin-top: 26px; border-top: 1px solid var(--line); padding-top: 16px; }
+    main.report { max-width: 880px; margin: 0 auto; padding: 2.5rem clamp(1.2rem,5vw,3.5rem) 6rem; }
+    main.report h1 { font-size: clamp(2.6rem, 6vw, 4.2rem); line-height: 0.95; margin: 0 0 1.6rem; }
+
+    .banner { padding: 1.5rem 1.7rem; margin: 0 0 2rem; border-left: 2px solid; position: relative; }
+    .banner h3 { font-family: var(--display); margin: 0 0 0.4rem; font-size: 1.5rem; }
+    .banner p { margin: 0; font-size: 0.95rem; line-height: 1.6; max-width: none; }
+    .banner .counts { margin-top: 0.8rem; font-family: var(--mono); font-size: 0.68rem;
+                      letter-spacing: 0.06em; opacity: 0.75; }
+    .banner.good   { border-color: var(--good); background: linear-gradient(90deg, rgba(127,214,164,.09), transparent 72%); color: var(--good); }
+    .banner.warn   { border-color: var(--warn); background: linear-gradient(90deg, rgba(240,195,110,.09), transparent 72%); color: var(--warn); }
+    .banner.urgent { border-color: var(--bad);  background: linear-gradient(90deg, rgba(232,131,111,.11), transparent 72%); color: var(--bad); }
+
+    .finding { border-left: 1px solid var(--line); background: var(--ink-050);
+               padding: 1.5rem 1.7rem; margin-bottom: 1px; }
+    .finding.tier-measured     { border-left: 2px solid var(--good); }
+    .finding.tier-weak-signal  { border-left: 2px solid var(--warn); }
+    .finding.tier-inconclusive { border-left: 2px solid var(--dim); }
+    .finding-head { display:flex; align-items:baseline; gap:0.9rem; margin-bottom:0.5rem; flex-wrap:wrap; }
+    .finding-head h2 { margin:0; font-size:1.45rem; text-transform: capitalize; }
+    .finding p { margin: 0 0 0.3rem; font-size: 0.95rem; line-height: 1.62; color: var(--paper); max-width: 68ch; }
+    .finding .urgent { color: var(--bad); font-weight: 600; margin-top: 0.7rem; }
+    .tier-badge { font-family: var(--mono); font-size: 0.58rem; letter-spacing: 0.13em;
+                  text-transform: uppercase; color: var(--dim);
+                  border: 1px solid var(--line); padding: 0.16rem 0.5rem; }
+    .retake-title { color: var(--muted); font-size: 0.85rem; margin-top: 0.9rem; }
+    .finding ul { margin: 0.4rem 0 0; padding-left: 1.1rem; color: var(--muted);
+                  font-size: 0.85rem; line-height: 1.6; }
+
+    table.metrics-table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.85rem; }
+    table.metrics-table td { padding: 0.5rem 0; border-bottom: 1px solid var(--line); color: var(--muted); }
+    table.metrics-table td:last-child { text-align: right; font-family: var(--mono); color: var(--cyan); }
+
+    .scale { color: var(--muted); margin: 0.9rem 0 0.2rem; display: block; }
+    .caveat { color: var(--muted); font-size: 0.82rem; margin-top: 0.9rem;
+              border-left: 1px solid var(--line); padding-left: 0.9rem; }
+    .disclaimer { border-left: 2px solid var(--amber);
+                  background: linear-gradient(90deg, var(--amber-glow), transparent 70%);
+                  padding: 1.2rem 1.4rem; font-size: 0.92rem; line-height: 1.6;
+                  margin-bottom: 2rem; }
+    .disclaimer strong { color: var(--amber); }
+    .legend { display:flex; gap:1.6rem; flex-wrap:wrap; margin: 2rem 0 0;
+              color: var(--dim); font-size: 0.78rem; }
+    .legend b { color: var(--paper); font-family: var(--mono); font-size: 0.68rem;
+                letter-spacing: 0.08em; text-transform: uppercase; }
+    .actions { margin-top: 2.2rem; display:flex; gap:0.8rem; flex-wrap: wrap; }
+    .footnote { color: var(--dim); font-size: 0.78rem; line-height: 1.7;
+                margin-top: 2.5rem; border-top: 1px solid var(--line); padding-top: 1.4rem;
+                max-width: 72ch; }
     @media print {
       body { background:#fff; color:#111; }
-      .card, .finding { break-inside: avoid; }
-      .actions { display:none; }
+      body::after { display:none; }
+      .finding, .card { break-inside: avoid; }
+      .actions, .topbar { display:none; }
     }
     """
 
@@ -308,7 +349,11 @@ def render_html(findings: list[Finding], session_id: str) -> str:
 <title>Vision Screening Report</title><style>{_css()}</style></head>
 <body><div class="chrome">
 <header class="topbar">
-  <div class="logo"><span class="iris"></span> VisionScreen</div>
+  <div class="logo">
+    <svg class="iris-mark" viewBox="0 0 26 26" aria-hidden="true">
+      <circle class="r2" cx="13" cy="13" r="12"/><circle class="r1" cx="13" cy="13" r="8"/>
+      <circle class="pupil" cx="13" cy="13" r="3.4"/>
+    </svg> VisionScreen</div>
   <div class="spacer"></div><span class="pill">report</span>
 </header>
 <main class="report">

@@ -11,7 +11,8 @@ def test_index_served():
     r = c.get("/")
     assert r.status_code == 200
     assert "VisionScreen" in r.text
-    assert "Comprehensive vision screening" in r.text
+    assert "vision screening" in r.text.lower()
+    assert "Set up" in r.text
 
 
 def test_static_assets_served():
