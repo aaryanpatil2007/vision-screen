@@ -44,3 +44,24 @@ def test_rejects_degenerate_input():
     flat = np.full((60, 90), 128, np.uint8)
     # no intensity structure => no defensible pupil label => reject the sample
     assert weak_label_eye_crop(flat, (45, 30), 22) is None
+
+
+def test_rejects_glare_labeled_as_pupil():
+    """A bright spectacle reflection must never be labeled as pupil."""
+    crop = np.full((60, 90), 120, np.uint8)
+    yy, xx = np.mgrid[0:60, 0:90]
+    r = np.hypot(xx - 45, yy - 30)
+    crop[r <= 22] = 130                       # iris, no dark pupil at all
+    crop[np.hypot(xx - 45, yy - 30) <= 8] = 255   # big central glare blob
+    assert weak_label_eye_crop(crop, iris_center=(45, 30), iris_radius=22) is None
+
+
+def test_rejects_blown_out_crop():
+    crop = np.full((60, 90), 253, np.uint8)
+    crop[28:32, 43:47] = 20
+    assert weak_label_eye_crop(crop, iris_center=(45, 30), iris_radius=22) is None
+
+
+def test_still_accepts_valid_dark_pupil():
+    crop = _synthetic_crop()
+    assert weak_label_eye_crop(crop, iris_center=(45, 30), iris_radius=22) is not None

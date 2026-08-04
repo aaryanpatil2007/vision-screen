@@ -28,3 +28,38 @@ def test_inconclusive_hides_metrics_shows_retakes():
     html = render_html([f], session_id="s1")
     assert "squint_fraction" not in html          # never report numbers we don't trust
     assert "Lighting too dark — add light." in html
+
+
+def test_snellen_conversion():
+    from visionscreen.report import snellen_from_logmar
+    assert snellen_from_logmar(0.0) == "20/20"
+    assert snellen_from_logmar(0.3) == "20/40"
+    assert snellen_from_logmar(1.0) == "20/200"
+
+
+def test_banner_reports_no_flags_when_clean():
+    fs = [Finding("acuity", "fine", "measured", {"logmar": 0.0, "flags": []})]
+    html = render_html(fs, "s")
+    assert "No screening flags raised" in html
+
+
+def test_banner_escalates_urgent_findings():
+    fs = [Finding("amsler", "marks", "measured",
+                  {"flags": ["distorted lines (metamorphopsia)"]})]
+    html = render_html(fs, "s")
+    assert "prompt attention" in html
+    assert "checked promptly" in html
+
+
+def test_snellen_row_added_for_acuity():
+    fs = [Finding("acuity (both eyes)", "x", "measured", {"logmar": 0.3, "trials": 20})]
+    html = render_html(fs, "s")
+    assert "20/40" in html
+
+
+def test_inconclusive_still_hides_metrics():
+    fs = [Finding("photorefraction", "no", "inconclusive",
+                  {"sphere_d": -2.5}, ["retake in the dark"])]
+    html = render_html(fs, "s")
+    assert "sphere_d" not in html and "-2.5" not in html
+    assert "retake in the dark" in html

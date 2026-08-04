@@ -75,11 +75,16 @@ def train_model(
     lr: float = 3e-3,
     real_root: Path | None = None,
     log_every: int = 1,
+    real_dataset: torch.utils.data.Dataset | None = None,
 ):
+    """real_dataset takes precedence over real_root — pass an explicit TRAIN
+    subset when a held-out real split exists, or the benchmark leaks."""
     device = pick_device(device)
     train_ds: torch.utils.data.Dataset = SyntheticEyeDataset(n_train, seed, out_size)
-    if real_root is not None:
-        real = RealEyeDataset(real_root, out_size)
+    real = real_dataset if real_dataset is not None else (
+        RealEyeDataset(real_root, out_size) if real_root is not None else None
+    )
+    if real is not None:
         if len(real):
             # oversample scarce real data so it isn't drowned by synthetic
             reps = max(1, n_train // (4 * len(real)))

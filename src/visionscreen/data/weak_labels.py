@@ -25,6 +25,8 @@ MIN_CROP_PX = 20
 MIN_PUPIL_FRACTION = 0.02   # of iris disk area
 MAX_PUPIL_FRACTION = 0.75
 REFLEX_PERCENTILE = 99.0
+MIN_PUPIL_IRIS_CONTRAST = 12.0   # pupil must be darker than the iris annulus
+MAX_SATURATED_FRACTION = 0.35    # blown-out crop (glasses glare) -> unusable
 
 
 def weak_label_eye_crop(
@@ -53,6 +55,11 @@ def weak_label_eye_crop(
     if spread < 25:
         return None  # no photometric structure — cannot defend a pupil label
 
+    # Spectacle glare blows out the eye region entirely; anything labeled on a
+    # saturated crop is a reflection, not anatomy.
+    if float((disk_vals >= 250).mean()) > MAX_SATURATED_FRACTION:
+        return None
+
     # --- pupil: Otsu restricted to the iris disk, keep the dark side ---
     vals = disk_vals.astype(np.uint8)
     thr, _ = cv2.threshold(vals, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -70,6 +77,17 @@ def weak_label_eye_crop(
     # the pupil is concentric with the iris; a far-off blob is an eyelash/shadow
     py, px = cents[idx][1], cents[idx][0]
     if np.hypot(px - iris_center[0], py - iris_center[1]) > iris_radius * 0.6:
+        return None
+
+    # A pupil is necessarily darker than the iris around it. Without this, a
+    # bright spectacle reflection inside the disk can win the largest-component
+    # vote and get labeled as pupil (observed on real eyeglass wearers).
+    annulus = iris_disk & ~pupil
+    if annulus.sum() < 20:
+        return None
+    pupil_med = float(np.median(crop_gray[pupil]))
+    iris_med = float(np.median(crop_gray[annulus]))
+    if iris_med - pupil_med < MIN_PUPIL_IRIS_CONTRAST:
         return None
     mask[pupil] = PUPIL_CLASS
 
