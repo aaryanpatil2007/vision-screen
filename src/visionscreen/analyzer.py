@@ -31,6 +31,7 @@ from visionscreen.modules.motility import score_motility
 from visionscreen.modules.photoref import measure_reflex, score_photoref
 from visionscreen.modules.pupillometry import PupilTrace, score_pupillometry
 from visionscreen.modules.stereo import score_stereo
+from visionscreen.modules.suppression import score_suppression
 from visionscreen.perception.distance import (
     acuity_bias_logmar,
     distance_from_iris,
@@ -347,6 +348,13 @@ def analyze_session(video_path: Path, meta: SessionMeta,
                       if ev.kind == "stereo_config"), None)
         findings.append(score_stereo(trials, catch, valid_fraction,
                                      display_floor_arcsec=floor))
+
+    # ---- binocular fusion / suppression ----
+    s = meta.segment("suppression")
+    if s is not None:
+        responses = {ev.payload["distance"]: ev.payload["response"]
+                     for ev in s.events if ev.kind == "worth"}
+        findings.append(score_suppression(responses, valid_fraction))
 
     # ---- motility + alignment (share the pursuit segment) ----
     if seg_motility is not None:

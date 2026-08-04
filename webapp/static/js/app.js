@@ -10,7 +10,7 @@ import { EyeTracker } from "./tracker.js";
 import {
   DIRS, SLOAN, letterHeightPx, drawTumblingE, contrastToGray,
   drawAstigmaticDial, drawAmsler, drawColorPlate, mulberry32,
-  drawRDS, disparityArcsec,
+  drawRDS, disparityArcsec, drawWorthDots,
 } from "./stimuli.js";
 
 const PLATES = [
@@ -36,6 +36,7 @@ const STEPS = [
   { id: "color_vision", label: "Color" },
   { id: "amsler", label: "Amsler" },
   { id: "stereo", label: "Depth" },
+  { id: "suppression", label: "Fusion" },
   { id: "motility", label: "Tracking" },
   { id: "pupil", label: "Pupils" },
   { id: "photoref", label: "Refraction" },
@@ -434,6 +435,37 @@ class App {
     this.hideStage();
   }
 
+
+  async runSuppression() {
+    this.setStep("suppression");
+    await this.prompt("Binocular fusion",
+      `Keep the red-cyan glasses on, red lens over your RIGHT eye.
+       You'll see a diamond of coloured dots. Count how many you see and say
+       which colours — this shows whether both eyes are working together.`);
+    const seg = this.session.open("suppression");
+
+    for (const [dist, label] of [["near", "at your normal distance"],
+                                 ["far", "from as far back as you can sit"]]) {
+      const st = this.stage(`
+        <div class="instruction">Look at the dots ${label}. How many do you see?</div>
+        <canvas id="worth" width="360" height="360" style="max-width:60vmin"></canvas>
+        <div class="keypad" style="grid-template-columns:repeat(2,190px)">
+          <button data-key="four">4 dots</button>
+          <button data-key="two_red">2 red only</button>
+          <button data-key="three_green">3 green only</button>
+          <button data-key="five_uncrossed">5 — reds on the right</button>
+          <button data-key="five_crossed">5 — reds on the left</button>
+        </div>`, { blackout: true });
+      const c = st.querySelector("#worth");
+      drawWorthDots(c.getContext("2d"), c.width / 2, c.height / 2, c.width * 0.3);
+      const resp = await this.waitKey(["four", "two_red", "three_green",
+                                       "five_uncrossed", "five_crossed"]);
+      this.session.log(seg, "worth", { distance: dist, response: resp });
+    }
+    this.session.close(seg);
+    this.hideStage();
+  }
+
   async runMotility() {
     this.setStep("motility");
     await this.prompt("Eye tracking",
@@ -564,6 +596,7 @@ class App {
     await this.runColor();
     await this.runAmsler();
     await this.runStereo();
+    await this.runSuppression();
     await this.runMotility();
     await this.runPupil();
     await this.runPhotoref();

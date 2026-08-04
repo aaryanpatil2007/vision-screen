@@ -101,6 +101,7 @@ _MODULE_LABELS = {
     "astigmatism": "Astigmatism",
     "alignment": "Eye alignment",
     "stereo": "Depth perception",
+    "suppression": "Binocular fusion",
     "viewing distance": "Viewing distance",
 }
 

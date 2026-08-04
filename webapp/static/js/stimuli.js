@@ -210,3 +210,24 @@ export function drawRDS(ctx, opts) {
 export function disparityArcsec(pixelDisparityMm, distanceMm) {
   return distanceMm > 0 ? (206265 * pixelDisparityMm) / distanceMm : 0;
 }
+
+/**
+ * Worth four-dot target: one red (top), two green (sides), one white (bottom).
+ * Through red/cyan glasses the red dot reaches only the red-filtered eye, the
+ * green dots only the other, and the white dot both — so the reported count
+ * and colours separate fusion, suppression, and diplopia.
+ */
+export function drawWorthDots(ctx, cx, cy, radius) {
+  const g = ctx;
+  g.fillStyle = "#000";
+  g.fillRect(0, 0, g.canvas.width, g.canvas.height);
+  const r = Math.max(6, radius * 0.16);
+  const dot = (x, y, color) => {
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2);
+    g.fillStyle = color; g.fill();
+  };
+  dot(cx, cy - radius, "#d40000");            // red, top
+  dot(cx - radius, cy, "#00c853");            // green, left
+  dot(cx + radius, cy, "#00c853");            // green, right
+  dot(cx, cy + radius, "#ffffff");            // white, bottom (both eyes)
+}

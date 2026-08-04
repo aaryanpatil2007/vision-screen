@@ -178,3 +178,15 @@ def test_stereo_voided_when_catch_trials_passed(face_video):
     m = modules(analyze_session(face_video, meta))
     assert m["stereo"].tier == "inconclusive"
     assert "threshold_arcsec" not in m["stereo"].metrics
+
+
+def test_suppression_segment_scored(face_video):
+    events = [ScreenEvent(ts=0.2, kind="worth",
+                          payload={"distance": "near", "response": "four"}),
+              ScreenEvent(ts=1.0, kind="worth",
+                          payload={"distance": "far", "response": "three_green"})]
+    meta = make_meta([SegmentMeta("suppression", 0.0, 2.0, events)])
+    m = modules(analyze_session(face_video, meta))
+    assert "suppression" in m
+    assert "suppression of one eye" in m["suppression"].metrics["flags"]
+    assert m["suppression"].metrics["suppressing_eye"] == "right"
