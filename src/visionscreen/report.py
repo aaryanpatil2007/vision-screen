@@ -49,9 +49,46 @@ _METRIC_LABELS = {
     "errors_total": "Color plates missed",
     "plates": "Plates shown",
     "distortion_marks": "Areas marked distorted",
+    "missing_marks": "Areas marked missing",
     "eyes_tested": "Eyes tested",
     "frames": "Usable frames",
+    "responses": "Repeats",
+    "axis": "Confusion axis",
+    "errors_protan": "Protan-line errors",
+    "errors_deutan": "Deutan-line errors",
+    "dead_zone_d": "Dead zone (diopters)",
+    "median_cm": "Measured distance (cm)",
+    "spread_pct": "Distance variation (%)",
+    "acuity_bias_logmar": "Acuity bias from distance (logMAR)",
+    "measured_distance_cm": "Measured distance (cm)",
+    "logmar_uncorrected": "Acuity before distance correction",
+    "distance_correction_logmar": "Distance correction (logMAR)",
+    "lag_left_s": "Tracking lag, left (s)",
+    "min_mm": "Smallest pupil (mm)",
+    "baseline_mm": "Resting pupil (mm)",
+    "constriction_pct": "Constriction (%)",
+    "latency_s": "Response latency (s)",
+    "samples": "Samples",
 }
+
+# Display names for modules whose internal ids are snake_case.
+_MODULE_LABELS = {
+    "color_vision": "Color vision",
+    "photorefraction": "Refraction estimate",
+    "pupillometry": "Pupil response",
+    "motility": "Eye movement",
+    "amsler": "Central field (Amsler)",
+    "contrast": "Contrast sensitivity",
+    "behavioral": "Viewing behavior",
+    "astigmatism": "Astigmatism",
+    "alignment": "Eye alignment",
+}
+
+
+def module_label(module: str) -> str:
+    if module in _MODULE_LABELS:
+        return _MODULE_LABELS[module]
+    return module.replace("_", " ")
 
 
 @dataclass
@@ -89,13 +126,75 @@ def _metric_rows(f: Finding) -> str:
     return "".join(rows)
 
 
+def _acuity_scale_svg(logmar: float) -> str:
+    """A logMAR scale with the result marked, plus the normal-vision reference."""
+    lo, hi = -0.3, 1.3
+    pos = max(0.0, min(1.0, (logmar - lo) / (hi - lo)))
+    x = 8 + pos * 384
+    normal_x = 8 + ((0.0 - lo) / (hi - lo)) * 384
+    ticks = ""
+    for v, lbl in ((-0.3, "20/10"), (0.0, "20/20"), (0.3, "20/40"),
+                   (0.7, "20/100"), (1.0, "20/200"), (1.3, "20/400")):
+        tx = 8 + ((v - lo) / (hi - lo)) * 384
+        ticks += (f"<line x1='{tx:.1f}' y1='30' x2='{tx:.1f}' y2='36' "
+                  f"stroke='currentColor' opacity='.35'/>"
+                  f"<text x='{tx:.1f}' y='50' font-size='9' text-anchor='middle' "
+                  f"fill='currentColor' opacity='.55'>{lbl}</text>")
+    return f"""<svg viewBox="0 0 400 60" width="100%" height="60" class="scale"
+      role="img" aria-label="acuity {logmar:.2f} logMAR on a 20/10 to 20/400 scale">
+      <defs><linearGradient id="ag" x1="0" x2="1">
+        <stop offset="0" stop-color="#38d39f"/><stop offset="0.45" stop-color="#ffb74d"/>
+        <stop offset="1" stop-color="#ff6b6b"/></linearGradient></defs>
+      <rect x="8" y="18" width="384" height="8" rx="4" fill="url(#ag)" opacity=".55"/>
+      {ticks}
+      <line x1="{normal_x:.1f}" y1="12" x2="{normal_x:.1f}" y2="32"
+            stroke="currentColor" stroke-dasharray="2 2" opacity=".5"/>
+      <circle cx="{x:.1f}" cy="22" r="7" fill="#fff" stroke="#0b0f14" stroke-width="2"/>
+    </svg>"""
+
+
+def _bar_svg(value: float, lo: float, hi: float, good_above: float | None,
+             label: str) -> str:
+    pos = max(0.0, min(1.0, (value - lo) / (hi - lo)))
+    x = 8 + pos * 384
+    ref = ""
+    if good_above is not None:
+        gx = 8 + max(0.0, min(1.0, (good_above - lo) / (hi - lo))) * 384
+        ref = (f"<line x1='{gx:.1f}' y1='12' x2='{gx:.1f}' y2='32' "
+               f"stroke='currentColor' stroke-dasharray='2 2' opacity='.5'/>"
+               f"<text x='{gx:.1f}' y='50' font-size='9' text-anchor='middle' "
+               f"fill='currentColor' opacity='.55'>normal</text>")
+    return f"""<svg viewBox="0 0 400 60" width="100%" height="60" class="scale"
+      role="img" aria-label="{_html.escape(label)}">
+      <rect x="8" y="18" width="384" height="8" rx="4" fill="currentColor" opacity=".18"/>
+      <rect x="8" y="18" width="{max(2, x-8):.1f}" height="8" rx="4"
+            fill="currentColor" opacity=".55"/>
+      {ref}
+      <circle cx="{x:.1f}" cy="22" r="7" fill="#fff" stroke="#0b0f14" stroke-width="2"/>
+    </svg>"""
+
+
+def _visual(f: Finding) -> str:
+    """A small chart when one communicates better than a number."""
+    if f.tier == "inconclusive":
+        return ""
+    m = f.metrics
+    if f.module.startswith("acuity") and isinstance(m.get("logmar"), (int, float)):
+        return _acuity_scale_svg(float(m["logmar"]))
+    if f.module == "contrast" and isinstance(m.get("log_cs"), (int, float)):
+        return _bar_svg(float(m["log_cs"]), 0.0, 2.25, 1.75, "contrast sensitivity")
+    if f.module == "alignment" and isinstance(m.get("deviation_pd"), (int, float)):
+        return _bar_svg(float(m["deviation_pd"]), 0.0, 40.0, 10.0, "ocular deviation")
+    return ""
+
+
 def _finding_html(f: Finding) -> str:
     flags = _flags(f)
     urgent = [x for x in flags if x in URGENT_FLAGS]
     parts = [f"<section class='finding tier-{f.tier}'>"]
     parts.append(
         "<div class='finding-head'>"
-        f"<h2>{_html.escape(f.module)}</h2>"
+        f"<h2>{_html.escape(module_label(f.module))}</h2>"
         f"<span class='tier-badge' title='{_html.escape(TIER_HELP[f.tier])}'>{f.tier}</span>"
         "</div>"
     )
@@ -105,6 +204,7 @@ def _finding_html(f: Finding) -> str:
             "<p class='urgent'>This finding is worth getting checked promptly.</p>"
         )
     if f.tier != "inconclusive":
+        parts.append(_visual(f))
         rows = _metric_rows(f)
         if rows:
             parts.append(f"<table class='metrics-table'>{rows}</table>")
@@ -160,6 +260,12 @@ def _css() -> str:
     .legend { display:flex; gap:18px; flex-wrap:wrap; margin: 26px 0 0; color: var(--muted); font-size:12.5px; }
     .legend b { color: var(--text); }
     .actions { margin-top: 28px; display:flex; gap:12px; }
+    .scale { color: var(--muted); margin: 10px 0 2px; display:block; }
+    @media print {
+      body { background:#fff; color:#111; }
+      .card, .finding { break-inside: avoid; }
+      .actions { display:none; }
+    }
     """
 
 

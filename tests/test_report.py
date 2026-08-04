@@ -63,3 +63,39 @@ def test_inconclusive_still_hides_metrics():
     html = render_html(fs, "s")
     assert "sphere_d" not in html and "-2.5" not in html
     assert "retake in the dark" in html
+
+
+def test_acuity_finding_includes_scale_visual():
+    fs = [Finding("acuity (both eyes)", "x", "measured", {"logmar": 0.3, "trials": 20})]
+    html = render_html(fs, "s")
+    assert "<svg" in html and "20/20" in html
+
+
+def test_contrast_finding_includes_bar():
+    fs = [Finding("contrast", "x", "measured", {"log_cs": 1.65, "flags": []})]
+    html = render_html(fs, "s")
+    assert "<svg" in html and "normal" in html
+
+
+def test_inconclusive_has_no_visual():
+    fs = [Finding("acuity (left eye)", "x", "inconclusive", {"logmar": 0.3},
+                  ["retake"])]
+    html = render_html(fs, "s")
+    assert "<svg" not in html
+
+
+def test_module_names_are_human_readable():
+    from visionscreen.report import module_label
+    assert module_label("color_vision") == "Color vision"
+    assert module_label("photorefraction") == "Refraction estimate"
+    assert module_label("acuity (both eyes)") == "acuity (both eyes)"
+    html = render_html([Finding("color_vision", "x", "weak-signal", {"flags": []})], "s")
+    assert "color_vision" not in html
+
+
+def test_metric_keys_never_shown_raw():
+    fs = [Finding("viewing distance", "x", "measured",
+                  {"median_cm": 48.2, "acuity_bias_logmar": 0.017, "flags": []})]
+    html = render_html(fs, "s")
+    assert "median_cm" not in html and "acuity_bias_logmar" not in html
+    assert "Measured distance (cm)" in html
