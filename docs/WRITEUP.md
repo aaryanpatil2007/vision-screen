@@ -42,10 +42,12 @@ on real eyes.** Adding weakly-labeled real data closes most of that gap
 | 5 | Astigmatism | minus-cylinder axis (deg) | Astigmatic fan / clock dial, "rule of 30" |
 | 6 | Color vision | red-green flag, protan/deutan lean | Pseudoisochromatic plates along confusion lines |
 | 7 | Central field | metamorphopsia / scotoma marks | Amsler grid, 20° subtense, 1° squares |
-| 8 | Ocular motility | pursuit gain, saccade rate | Smooth pursuit + H-pattern saccades |
-| 9 | Alignment | deviation in prism diopters | Hirschberg corneal reflex asymmetry |
-| 10 | Pupil response | constriction %, latency, asymmetry | Light reflex; RAPD as inter-eye asymmetry |
-| 11 | Refractive error | sphere / cylinder / axis (D) | Eccentric photorefraction |
+| 8 | Stereoacuity | threshold in arcsec | Dynamic random-dot stereogram, 4AFC, catch trials |
+| 9 | Ocular motility | pursuit gain, saccade rate | Smooth pursuit + H-pattern saccades |
+| 10 | Alignment | deviation in prism diopters | Hirschberg corneal reflex asymmetry |
+| 11 | Pupil response | constriction %, anisocoria | Binocular light reflex |
+| 12 | Refractive error | sphere / cylinder / axis (D) | Eccentric photorefraction |
+| — | Viewing distance | cm, drift, acuity bias | Pinhole model on interocular span |
 
 Behavioural signals (squinting, lean-in, head tilt) are extracted from the
 video throughout and reported alongside.
@@ -54,6 +56,30 @@ video throughout and reported alongside.
 intraocular pressure, slit-lamp examination, dilated fundus examination,
 objective retinoscopy, formal perimetry, OCT. A normal screening result here
 does not exclude glaucoma, diabetic retinopathy, or macular disease.
+
+**Three tests were deliberately *not* built, because the physics forbids them
+on a bare screen.** Documenting why matters more than shipping a plausible
+imitation:
+
+* **RAPD / swinging flashlight.** The pupil light reflex is fully consensual —
+  a screen flash reaches both retinas, so both pupils respond to the *summed*
+  afferent input. Inter-eye response asymmetry under a bilateral stimulus
+  therefore reflects efferent or iris differences, not an afferent defect.
+  Anaglyph "monocular" stimulation does not rescue it: red carries 21% of white
+  luminance and cyan 79%, a 0.57 log-unit intrinsic imbalance that exceeds most
+  clinically meaningful RAPDs (Bell grade I = 0.4 LU). An earlier version of
+  this system did claim RAPD detection; that claim was removed.
+* **Cover test for tropia.** A screen cannot occlude an eye. Anaglyph hides the
+  *target* from one eye while that eye still sees the room, which dissociates a
+  phoria rather than performing a cover test. Reported automated cover-test
+  agreement bears this out: a 250 Hz tracker with a *physical* occluder reaches
+  ±1.95Δ, while simulated occlusion in VR degrades to ±17–28Δ with essentially
+  no correlation for exotropia.
+* **Brückner reflex.** Requires illumination coaxial with the observation axis;
+  a screen is an extended source displaced several centimetres from the lens,
+  so for an undilated 3–5 mm pupil at 50 cm the light misses the pupillary
+  aperture entirely. Consumer webcams also carry IR-cut filters and auto-exposure
+  that destroy reflex-brightness comparison.
 
 ---
 
@@ -134,12 +160,12 @@ All benchmarks are reproducible: `python -m benchmarks.<name>`; JSON in `results
 
 | training data | synthetic mIoU | **real mIoU** | real pupil IoU |
 |---|---|---|---|
-| synthetic only | 0.919 | **0.241** | 0.367 |
-| synthetic + weakly-labeled real | 0.919 | **0.691** | 0.830 |
+| synthetic only | 0.927 | **0.241** | 0.390 |
+| synthetic + weakly-labeled real | 0.925 | **0.705** | 0.828 |
 
-Sim-to-real gap for synthetic-only training: **0.678 mIoU**. Adding real data
-recovers **+0.450**. Real corpus: 866 train / 288 held-out test, split before
-training (leakage checked and fixed during development).
+Sim-to-real gap for synthetic-only training: **0.685 mIoU**. Adding real data
+recovers **+0.464**. Real corpus: 2,198 train / 732 held-out test, split before
+training (a leakage bug was caught and fixed before any number was published).
 
 **Interpretation.** A model validated only on its own simulator would have
 reported 0.92 and been wrong about real eyes by a factor of four. Any
@@ -153,14 +179,14 @@ Virtual patients with ground-truth conditions and realistic lapse rates
 
 | test | metric | result |
 |---|---|---|
-| Visual acuity | mean absolute error | **0.077 logMAR** |
-| Visual acuity | within chart test-retest repeatability (0.15 logMAR) | **89.2%** |
-| Contrast sensitivity | mean absolute error | **0.168 log CS** (≈1 triplet step) |
+| Visual acuity | mean absolute error | **0.065 logMAR** |
+| Visual acuity | within chart test-retest repeatability (0.15 logMAR) | **93.3%** |
+| Contrast sensitivity | mean absolute error | **0.137 log CS** (≈1 triplet step) |
 | Strabismus (≥10 PD) | sensitivity / specificity | **1.00 / 1.00** |
-| Color deficiency | sensitivity / specificity | **1.00 / 0.97** |
-| RAPD | sensitivity / specificity | **1.00 / 1.00** |
-| Astigmatism axis | mean absolute error | **4.8°** |
-| Photorefraction | mean absolute spherical-equivalent error | **0.029 D** |
+| Color deficiency | sensitivity / specificity | **1.00 / 0.96** |
+| Anisocoria (≥1 mm) | sensitivity / specificity | **1.00 / 1.00** |
+| Astigmatism axis | mean absolute error | **5.1°** |
+| Photorefraction | mean absolute spherical-equivalent error | **0.028 D** |
 
 Clinical chart acuity has a published test-retest repeatability of roughly
 0.10–0.20 logMAR, so an 0.077 logMAR algorithmic error sits at the noise floor
@@ -195,6 +221,17 @@ Each of these was found by measurement, not inspection:
    reads "at or better than".
 7. **Data leakage in the sim-to-real benchmark** — real training initially
    included the held-out split; caught before any number was published.
+8. **An unsupportable RAPD claim** — the pupillometry module originally
+   reported inter-eye response asymmetry as a possible relative afferent
+   pupillary defect. A bilateral screen flash cannot reveal an afferent
+   asymmetry at all (§2). The claim was removed and replaced with what is
+   measurable: binocular PLR plus static anisocoria at a ≥1 mm threshold,
+   since ≥0.4 mm occurs in 41% of normal subjects at some sitting and 19% at
+   any given exam (Lam, Thompson & Corbett 1987).
+9. **Pupil latency reported at 30 fps** — frame quantization there has an SD
+   of ~9.6 ms, which exceeds the *lower bound* of the physiological inter-eye
+   latency asymmetry range (8.3–35 ms; Bergamin & Kardon 2003). Latency is now
+   withheld below 55 fps rather than reported as noise.
 
 ### 4.5 Why real sessions failed before
 
@@ -204,6 +241,40 @@ algorithm — is why alignment returned "inconclusive" on real users. The
 capture protocol was changed so the pursuit target is a bright white disc on a
 dark field, making the test supply its own catchlight, as a clinical
 transilluminator does.
+
+---
+
+### 4.6 What the published literature says the bar is
+
+The most directly comparable published system is **Melbourne Rapid Fields-web**,
+a browser-based visual-field test run on ordinary laptops (including a 13"
+MacBook Air at 33 cm) and validated against Humphrey SITA-Faster in a
+multicentre study of 232 subjects. Its calibration strategy is the same one
+used here — **screen brightness at maximum, a credit-card mire for pixel pitch,
+and webcam face tracking for viewing distance, with no photometer**. It reports
+MD bias −0.50 dB, 95% limits of agreement −6.80 to +5.80 dB, ICC 0.87, and —
+critically — an **AUC of 0.84 versus the Humphrey's own 0.84**.
+
+That result is the existence proof this project leans on: a browser on stock
+consumer hardware, calibrated with a credit card and a webcam, *can* match a
+clinical instrument's discrimination. It also shows what separates success from
+failure. The cautionary counterexample is *Visual Fields Easy*, the same
+hardware class and a similar test, but **uncalibrated and suprathreshold**: in
+203 eyes it achieved AUROC 0.68 and **35% sensitivity at 90% specificity**, and
+its authors concluded it had "inadequate diagnostic accuracy to be used as a
+screening tool." The difference between the two is calibration and threshold
+methodology, not hardware.
+
+Two further external reference points bound expectations here:
+
+* **Automated cover testing** with a 250 Hz tracker and a physical occluder
+  reaches ±1.95Δ intersession; the human gold standard (prism cover test,
+  interexaminer) has 95% limits of agreement of roughly ±5Δ. So a 2–6Δ
+  microtropia is below the resolution of the clinical reference itself.
+* **Stereoacuity** on a validated autostereo tablet (ASTEROID) has a
+  test-retest coefficient of repeatability of ×2.9 (0.46 log₁₀) — meaning even
+  a purpose-built instrument's stereo threshold moves by a factor of ~3 between
+  sittings. Any screen-based stereo number should be read against that.
 
 ---
 
@@ -229,6 +300,21 @@ transilluminator does.
    means; individual deviation propagates 5–10% scale error.
 9. **Spectacles.** Lens reflections both hide the corneal glint and create
    false speculars; a large share of crop rejections involve glasses.
+10. **Visible-light pupillometry degrades on dark irides.** In NIR the iris
+    stroma reflects strongly; in visible light melanin absorbs, and every
+    clinical pupillometer is therefore infrared. The one large, diverse,
+    bare-phone visible-light study against an NPi-200 (n=200 eyes) reported
+    ICCs of 0.02–0.58 and a *negative* ICC for latency. Consumer webcams carry
+    IR-cut filters, so this ceiling applies here too.
+11. **Absolute pupil millimetres are biased.** The camera sees the *entrance*
+    pupil, magnified ~13% by the cornea, while the limbus used as the ruler is
+    not magnified. Relative measures (percent constriction, inter-eye ratios)
+    are unaffected and are reported as primary; millimetre values are
+    secondary.
+12. **Stereo is display-floor limited.** At 140 ppi and 50 cm the whole-pixel
+    disparity floor is ~75 arcsec, so the 40 arcsec clinical rung is not
+    presentable without subpixel rendering. The floor is computed per session
+    and reported with the result.
 
 ---
 
@@ -292,3 +378,25 @@ python3.12 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 - MediaPipe FaceLandmarker (Google), 478-landmark mesh with iris refinement.
 - Ronneberger, O., Fischer, P. & Brox, T. (2015). U-Net: convolutional networks
   for biomedical image segmentation. *MICCAI*.
+- Lam, B.L., Thompson, H.S. & Corbett, J.J. (1987). The prevalence of simple
+  anisocoria. *Am J Ophthalmol* 104(1):69-73.
+- Bergamin, O. & Kardon, R.H. (2003). Latency of the pupil light reflex:
+  sampling, stimulus intensity, and variation in normal subjects. *IOVS*.
+- Bell, R.A. et al. (1993). Clinical grading of relative afferent pupillary
+  defects. *Arch Ophthalmol* 111(7):938-942.
+- Wang, Y. et al. (2018). Pupil light reflex evoked by light-emitting diode and
+  computer screen stimulation. *PLoS One* 13(6):e0197739.
+- Hartle, B., Vancleef, K., Read, J.C.A. et al. (2019). Stereotests without
+  stereopsis: monocular and binocular non-stereoscopic cues. *Sci Rep* 9:5779.
+- Read, J.C.A. et al. (2020). ASTEROID stereotest v1.0: validation and
+  repeatability. *Ophthalmic Physiol Opt* 40:815-827.
+- Kong, Y.X.G., He, M., Crowston, J.G. & Vingrys, A.J. (2016). A comparison of
+  perimetric results from a tablet perimeter and Humphrey Field Analyzer.
+  *Transl Vis Sci Technol*.
+- Rüfer, F., Schröder, A. & Erb, C. (2005). White-to-white corneal diameter.
+  *Cornea* 24(3):259-261.
+- Anderson, H.A., Manny, R.E., Cotter, S.A. et al. (2010). Effect of
+  examiner experience and technique on the alternate cover test.
+  *Optom Vis Sci* 87(3):168-175.
+- Brodie, S.E. (1987). Photographic calibration of the Hirschberg test.
+  *IOVS* 28(4):736-742.
