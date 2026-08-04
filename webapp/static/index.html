@@ -26,7 +26,10 @@ matching the direction its prongs point. 20 letters total.</p>
 <video id="video" autoplay muted></video>
 <script>
 const DIRS = ["up", "down", "left", "right"];
-const DISTANCE_CM = 50, PX_PER_CM = window.devicePixelRatio * 96 / 2.54;
+// CSS px per cm (font-size is CSS px, so devicePixelRatio must NOT appear here);
+// 96 CSS px/inch is nominal — a card-width calibration step would refine this.
+const DISTANCE_CM = 50, PX_PER_CM = 96 / 2.54;
+const CAP_HEIGHT_EM = 0.7;  // an "E" glyph is ~0.7 em tall; scale font-size up
 let events = [], recorder, chunks = [], startTs = 0;
 let logmar = 1.0, trial = 0, shown = null;
 const N_TRIALS = 20;
@@ -48,7 +51,7 @@ async function nextTrial() {
   const r = await fetch(`/config?logmar=${logmar}&distance_cm=${DISTANCE_CM}&px_per_cm=${PX_PER_CM}`);
   const { letter_px } = await r.json();
   const el = document.getElementById("letter");
-  el.style.fontSize = `${Math.max(letter_px, 4)}px`;
+  el.style.fontSize = `${Math.max(letter_px / CAP_HEIGHT_EM, 4)}px`;
   el.innerHTML = `<span class="rot-${shown}">E</span>`;
 }
 
