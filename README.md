@@ -51,9 +51,18 @@ annotated images), against Nahass et al., *Ophthalmology Science* 2025.
 **284,214 parameters** against roughly 60,000,000. Mean Dice 0.877 across five
 structures; mIoU 0.788.
 
-Sclera is the number worth noting — it is the hardest class in this literature
-(the OpenEDS 2020 baseline manages 0.674 IoU; zero-shot SAM 2 gets 0.074),
-because its boundary with the lid is a shadow rather than an edge.
+Most of the margin comes from **average pooling instead of max** — the
+boundaries here are soft intensity ramps, and max-pooling discards the gradient
+that localises them — plus a generalized Dice loss that stops a 0.3%-of-pixels
+class like caruncle being ignored. Sclera is the one worth noting: it is the
+hardest class in this literature (the OpenEDS 2020 baseline manages 0.674 IoU;
+zero-shot SAM 2 gets 0.074) because its border with the lid is a shadow.
+
+**How strong is this?** Same dataset and same 80/20 protocol, but the reference
+paper's exact split is not published, so this is a different draw from the same
+images rather than a shared test set. Split variance is worth about a point per
+class: lid, caruncle and sclera clear that comfortably, **iris (+0.010) should be
+read as a tie**. The parameter count is not subject to that caveat.
 
 ### Anaemia from conjunctival pallor — real clinical labels
 
@@ -73,6 +82,19 @@ operator), **nested model selection** (picking a model family by its held-out
 score is test-set selection), and a **matched operating point** (comparing at
 whatever threshold each side happened to use compares operating points, not
 tests).
+
+It works because of the physics rather than the model: the primary feature is
+the erythema index log10(R/G), since haemoglobin absorbs strongly in green and
+weakly in red. A *ratio* divides out exposure, which is what lets one model hold
+up across ten hospitals' cameras.
+
+**How strong is this?** Weaker than the segmentation result, and for a specific
+reason: **it is a cross-study comparison, not head-to-head.** Collings et al.
+used their own, non-public dataset — different population, cameras and
+prevalence. Comparing across datasets is standard in this literature but is not
+the same as winning on shared data. Read the 13.5-point margin as indicative.
+What makes it worth stating is that the protocol here is stricter than theirs on
+all three axes above.
 
 One expectation was wrong and is recorded as such: a random split was predicted
 to inflate the score badly. The gap was **0.001 AUC** — hand-built colour

@@ -33,6 +33,41 @@ validation, 80 epochs, best at epoch 56. Horizontal-flip test-time augmentation
 was evaluated and *not* used — it scored 0.8569 against the plain model's
 0.8570, so the reported figure is the single forward pass.
 
+### How the comparison was made — and what it is not
+
+**This is a same-dataset, same-protocol comparison, not a shared-test-set one.**
+The reference paper's exact train/validation split is not published, so the 80/20
+split here is a different draw from the same 2,842 images. Split variance on a
+set this size is worth roughly a percentage point per class, which means:
+
+* lid (+0.077), caruncle (+0.105) and sclera (+0.035) are comfortably outside
+  that band and are real;
+* **iris (+0.010) is inside it and should be read as a tie**, not a win.
+
+There is no held-out leaderboard for this dataset, so no stronger form of the
+comparison is currently available. What is directly comparable, and not
+subject to split variance at all, is the parameter count.
+
+### Why it wins
+
+Four choices, in descending order of how much they contributed:
+
+* **Average pooling instead of max pooling.** The boundaries that matter here —
+  limbus, lid margin — are soft intensity ramps rather than edges. Max-pooling
+  keeps the brightest pixel in each window and discards the gradient that
+  localises a soft boundary. This is why the gains concentrate on sclera and
+  lid, the two classes whose borders are shadows.
+* **Generalized Dice loss with inverse-square class-frequency weighting.**
+  Caruncle occupies about 0.3% of pixels; under an unweighted loss a model can
+  ignore it entirely and still score well. That class shows the largest margin
+  (+0.105).
+* **Boundary-weighted cross-entropy.** Nearly all residual error sits within a
+  few pixels of each edge, and a uniform loss spends its gradient on easy
+  interiors instead.
+* **Dense blocks.** Each layer sees the concatenation of all previous features,
+  so it needs far fewer channels of its own. This is where the ~200x parameter
+  reduction comes from, not from a smaller or shallower network.
+
 Parameters: **284,214** against roughly 60,000,000 — **0.47%** of the reference
 model. The architecture is a dense encoder–decoder with average pooling instead
 of max pooling, because the boundaries that matter here (limbus, lid margin)
@@ -93,7 +128,37 @@ validated least.
 **Reference:** Collings et al. 2016, *PLoS One* 11:e0153286 — conjunctival
 pallor from digital photographs, **57% sensitivity / 83% specificity** on
 validation (93%/78% in training). Compared at matched specificity, this system
-is **13.5 points more sensitive**, under a stricter protocol.
+is **13.5 points more sensitive**.
+
+### How the comparison was made — and what it is not
+
+**This is a cross-study comparison, not head-to-head.** Collings et al. used
+their own dataset, which is not public; the numbers here are measured on
+CP-AnemiC. Different populations, different cameras, different prevalence, and
+different disease severity distributions. Comparing across datasets is how this
+literature routinely compares itself, and it is still weaker than a shared test
+set. Treat the 13.5-point margin as indicative, not as a measured difference
+between two methods on the same data.
+
+What makes it worth stating at all is that the protocol here is **stricter than
+theirs in three specific ways**, so the comparison is not tilted in this
+system's favour:
+
+* they validated on a random split; this is leave-one-hospital-out, where every
+  test image comes from a site the model has never seen;
+* the model family is chosen by an inner loop inside each training fold, not by
+  its held-out score;
+* the operating point is theirs, not the one that flatters this system — at the
+  Youden point the numbers would read 0.783/0.776 instead.
+
+### Why it works
+
+The physics, not the model. The primary feature is the erythema index
+log10(R/G): haemoglobin absorbs strongly in green and weakly in red, so the
+red-to-green ratio tracks blood content directly. Using a *ratio* rather than
+absolute brightness divides out exposure and illuminant intensity, which is what
+lets one model work across ten hospitals' cameras. With 710 images across 10
+sites, a fine-tuned CNN would have the capacity to memorise sites instead.
 
 Three deliberate choices make that comparison honest:
 
