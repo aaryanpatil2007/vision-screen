@@ -80,6 +80,14 @@ def train_model(
     """real_dataset takes precedence over real_root — pass an explicit TRAIN
     subset when a held-out real split exists, or the benchmark leaks."""
     device = pick_device(device)
+    # `seed` reached the dataset but never torch, so weight initialisation,
+    # dropout and shuffling were all unseeded: the same call trained a
+    # different network every time. Invisible while metrics are averaged over
+    # many samples, very visible on any single borderline case — it is what
+    # made a reflex-detection test pass alone and fail under load.
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
     train_ds: torch.utils.data.Dataset = SyntheticEyeDataset(n_train, seed, out_size)
     real = real_dataset if real_dataset is not None else (
         RealEyeDataset(real_root, out_size) if real_root is not None else None

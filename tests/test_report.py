@@ -130,3 +130,144 @@ def test_report_carries_research_prototype_footer():
 def test_no_prescription_note_when_no_refraction():
     html = render_html([Finding("contrast", "x", "measured", {"log_cs": 1.8})], "s")
     assert "not a prescription" not in html
+
+
+# ------------------------------------------- the differential in the report --
+
+def _demo_findings():
+    return [
+        Finding("acuity", "Distance acuity 0.55 logMAR.", tier="measured",
+                metrics={"logmar": 0.55, "eye": "left"}),
+        Finding("acuity", "Distance acuity 0.52 logMAR.", tier="measured",
+                metrics={"logmar": 0.52, "eye": "right"}),
+        Finding("astigmatism", "One meridian sharper.", tier="measured",
+                metrics={"flags": ["possible astigmatism"], "axis_deg": 90}),
+    ]
+
+
+def test_banner_does_not_contradict_the_differential_below_it():
+    """A person can pass every individual threshold while the combination still
+    points somewhere. "No flags raised" directly above "likely: short sight"
+    reads as the report arguing with itself."""
+    from visionscreen.diagnosis import differential_from_findings
+    from visionscreen.report import _summary_banner
+
+    f = _demo_findings()
+    conds = differential_from_findings(f, age=24)
+    assert conds
+    banner = _summary_banner(f, conds)
+    assert "No screening flags raised" not in banner
+    assert "optometrist" in banner or "prompt attention" in banner
+
+
+def test_clean_session_still_reports_all_clear():
+    from visionscreen.report import _summary_banner
+
+    clean = [Finding("acuity", "Normal.", tier="measured",
+                     metrics={"logmar": 0.0, "eye": "left"})]
+    assert "No screening flags raised" in _summary_banner(clean, [])
+
+
+def test_banner_does_not_say_the_same_thing_twice():
+    from visionscreen.diagnosis import differential_from_findings
+    from visionscreen.report import _summary_banner
+
+    f = _demo_findings()
+    banner = _summary_banner(f, differential_from_findings(f, age=24))
+    assert banner.lower().count("astigmatism") == 1, banner
+
+
+def test_headline_leads_with_the_answer():
+    """A reader who must assemble the conclusion from eighteen test cards will
+    not do it."""
+    from visionscreen.diagnosis import differential_from_findings
+
+    f = _demo_findings()
+    html = render_html(f, "s1", conditions=differential_from_findings(f, age=24),
+                       correction="none")
+    assert "The short version" in html
+    assert html.index("The short version") < html.index("What might explain")
+    assert "20/" in html                       # acuity stated in plain Snellen
+
+
+def test_headline_states_what_correction_was_worn():
+    """Identical numbers mean opposite things with and without lenses. Omitting
+    that is not terse, it is misleading."""
+    from visionscreen.diagnosis import differential_from_findings
+
+    f = _demo_findings()
+    conds = differential_from_findings(f, age=24)
+    with_lenses = render_html(f, "s2", conditions=conds, correction="contacts")
+    without = render_html(f, "s3", conditions=conds, correction="none")
+    assert "wearing contact lenses" in with_lenses
+    assert "not what your eyes do unaided" in with_lenses
+    assert "no correction" in without
+    # and an unrecorded answer must say so rather than quietly assume
+    unknown = render_html(f, "s4", conditions=conds)
+    assert "did not record whether" in unknown
+
+
+def test_headline_reports_run_quality_up_front():
+    """Whether the run worked matters more than any single number in it."""
+    good = [Finding("acuity", "", tier="measured", metrics={"logmar": 0.0, "eye": "left"}),
+            Finding("contrast", "", tier="measured", metrics={"log_cs": 1.8})]
+    assert "went well" in render_html(good, "s5", conditions=[])
+
+    poor = [Finding("acuity", "", tier="inconclusive", metrics={}),
+            Finding("contrast", "", tier="inconclusive", metrics={}),
+            Finding("stereo", "", tier="measured", metrics={})]
+    assert "Poor run" in render_html(poor, "s6", conditions=[])
+
+
+def test_rejected_acuity_is_blamed_on_the_run_not_the_eyes():
+    """Chance-level answers say nothing about vision, and the report must not
+    let a reader think otherwise."""
+    f = [Finding("acuity", "", tier="inconclusive",
+                 metrics={"trials": 56, "correct": 6,
+                          "rejected_reason": "responses no better than chance"})]
+    html = render_html(f, "s7", conditions=[], correction="contacts")
+    assert "No acuity result" in html
+    assert "not a finding about your eyes" in html
+
+
+def test_differential_renders_with_evidence_and_provenance():
+    from visionscreen.diagnosis import differential_from_findings
+
+    f = _demo_findings()
+    html = render_html(f, "s8", conditions=differential_from_findings(f, age=24))
+    assert "Why this came up" in html
+    assert "supports" in html
+    assert ">LIT<" in html or ">EST<" in html
+    assert "possibilities ranked" in html
+
+
+def test_urgent_conditions_sort_above_more_likely_routine_ones():
+    """A 7% chance of retinal detachment matters more than a 90% chance of
+    needing reading glasses."""
+    from visionscreen.diagnosis import differential
+
+    conds = differential({"near_acuity_logmar": 0.6, "acuity_logmar_left": 0.0,
+                          "acuity_logmar_right": 0.0}, age=55,
+                         symptoms={"sudden_flashes", "curtain_shadow"})
+    html = render_html([], "s9", conditions=conds)
+    u, r = html.find("retinal"), html.find("presbyopia")
+    assert u != -1
+    if r != -1:
+        assert u < r
+
+
+def test_report_renders_without_a_differential():
+    html = render_html(_demo_findings(), "s10")
+    assert "Your screening report" in html
+    assert "What might explain these results" not in html
+
+
+def test_refraction_card_shows_its_interval_not_just_a_number():
+    from visionscreen.modules.refraction import estimate_refraction
+
+    rx = estimate_refraction(photoref_sphere=-2.0, photoref_cyl=0.75,
+                             photoref_tier="measured", acuity_logmar=0.52,
+                             acuity_tier="measured", pupil_mm=4.2, age=24)
+    html = render_html(_demo_findings(), "s11", conditions=[], refraction=rx)
+    assert "not a prescription" in html.lower()
+    assert "most likely between" in html

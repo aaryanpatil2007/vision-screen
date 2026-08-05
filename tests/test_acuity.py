@@ -228,3 +228,82 @@ def test_a_reader_at_the_ceiling_is_still_measured_normally():
     f = score_trials(trials, optotype=SLOAN)
     assert "acuity below measurable range" not in f.metrics.get("flags", [])
     assert f.metrics.get("logmar") is not None
+
+
+# ------------------------------------------------ responses that mean nothing --
+
+def _sloan_trials(pairs):
+    return [{"logmar": lm, "shown": "C", "answered": "C" if ok else "D"}
+            for lm, ok in pairs]
+
+
+def test_chance_level_responses_are_not_a_measurement():
+    """A staircase converges because the answers carry information. If they are
+    indistinguishable from guessing, the level random-walks around wherever it
+    started and the reversal mean returns that starting value with false
+    precision — which is what a broken input or a misread instruction produces,
+    and it is indistinguishable from a real threshold unless checked."""
+    import random
+
+    from visionscreen.modules.acuity import SLOAN, score_trials
+
+    rng = random.Random(0)
+    trials = _sloan_trials([(1.0 + rng.uniform(-0.2, 0.2), rng.random() < 0.10)
+                            for _ in range(56)])
+    f = score_trials(trials, optotype=SLOAN)
+    assert f.tier == "inconclusive", f.summary
+    assert "guessing" in f.summary
+    assert f.metrics["rejected_reason"] == "responses no better than chance"
+    assert "not by itself mean anything about your vision" in f.summary
+    assert f.retakes
+
+
+def test_genuine_performance_still_produces_a_threshold():
+    """The guard must not swallow real data."""
+    from visionscreen.modules.acuity import SLOAN, score_trials
+
+    seq = []
+    for _ in range(12):
+        seq += [(0.7, True), (0.4, True), (0.1, False)]
+    f = score_trials(_sloan_trials(seq), optotype=SLOAN)
+    assert f.tier == "measured", f.summary
+    assert f.metrics.get("logmar") is not None
+
+
+def test_chance_guard_uses_the_optotype_it_was_given():
+    """Tumbling-E is 4-alternative (25% chance), Sloan 10-alternative (10%).
+    The same 30% hit rate is noise on one and signal on the other."""
+    from visionscreen.modules.acuity import _above_chance
+
+    assert _above_chance(15, 50, 0.10) is True
+    assert _above_chance(15, 50, 0.25) is False
+    assert _above_chance(20, 20, 0.10) is True
+    assert _above_chance(0, 40, 0.10) is False
+
+
+def test_parked_at_the_ceiling_and_scattered_noise_are_told_apart():
+    """Two different failures producing similar-looking numbers.
+
+    Someone who genuinely cannot read the largest letter drives the staircase to
+    the ceiling and it stays there — most trials land on one level. Broken input
+    scatters trials across levels while scoring chance on each. The first is a
+    finding about their vision; the second about the run. Confusing them either
+    hands a healthy person "worse than 20/400" or tells someone who needs help
+    that their test glitched.
+    """
+    import random
+
+    from visionscreen.modules.acuity import SLOAN, score_trials
+
+    parked = [{"logmar": 1.3, "shown": "C", "answered": None} for _ in range(40)]
+    got = score_trials(parked, optotype=SLOAN)
+    assert "acuity below measurable range" in got.metrics["flags"]
+    assert got.tier == "measured"
+
+    rng = random.Random(7)
+    scattered = [{"logmar": round(rng.uniform(0.6, 1.3), 2), "shown": "C",
+                  "answered": "C" if rng.random() < 0.10 else "K"}
+                 for _ in range(56)]
+    got2 = score_trials(scattered, optotype=SLOAN)
+    assert got2.tier == "inconclusive"
+    assert got2.metrics["rejected_reason"] == "responses no better than chance"

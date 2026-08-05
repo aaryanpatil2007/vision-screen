@@ -334,3 +334,87 @@ def test_glasses_guidance_is_keep_them_on(server, browser_ctx):
     body = page.inner_text("body").lower()
     assert "keep your glasses or contacts on" in body
     assert "otherwise take them off" not in body
+
+
+def test_hero_title_describes_what_the_tool_does(server, browser_ctx):
+    """The old headline promised a test "measured in the dark". It never was —
+    and after the dark-room opt-out only two of eighteen tests need darkness at
+    all, so the line was both confusing and untrue."""
+    page, _ = _page(browser_ctx, server)
+    title = page.inner_text("h1.display").lower()
+    assert "dark" not in title
+    assert "webcam" in title
+
+
+def test_no_prototype_badge_in_the_header(server, browser_ctx):
+    page, _ = _page(browser_ctx, server)
+    assert page.query_selector("header .pill") is None
+
+
+def test_intake_captures_age_correction_and_symptoms(server, browser_ctx):
+    """All three change what the results mean. Age drives every prevalence,
+    correction decides whether a number describes the eye or the prescription,
+    and the symptoms are findings a camera cannot reach."""
+    page, _ = _page(browser_ctx, server)
+    page.fill("#age", "18")
+    page.check("input[name=correction][value=contacts]")
+    page.check("#symptoms input[value=glare]")
+    page.evaluate("() => window.__app.session.readIntake()")
+    got = page.evaluate("""() => {
+      const s = window.__app.session;
+      return {age: s.ageYears, corr: s.wearingCorrection, sym: s.symptoms};
+    }""")
+    assert got["age"] == 18
+    assert got["corr"] == "contacts"
+    assert "glare" in got["sym"]
+
+
+def test_implausible_age_is_rejected_rather_than_passed_through(server, browser_ctx):
+    """An age of 0 or 900 would skew every base rate in the differential."""
+    page, _ = _page(browser_ctx, server)
+    for bad in ("0", "900"):
+        page.fill("#age", bad)
+        page.evaluate("() => window.__app.session.readIntake()")
+        assert page.evaluate("() => window.__app.session.ageYears") is None
+
+
+def test_distance_anchors_cover_the_slider_range(server, browser_ctx):
+    """Viewing distance scales every acuity result, and "50 cm" means nothing to
+    most people. An anchor that never changes is decoration."""
+    page, _ = _page(browser_ctx, server)
+    seen = []
+    for cm in (30, 40, 50, 60, 75, 95):
+        page.eval_on_selector("#distance",
+                              f"el => {{ el.value = {cm}; "
+                              f"el.dispatchEvent(new Event('input', {{bubbles: true}})); }}")
+        text = page.text_content("#distanceAnchor")
+        assert text and len(text) > 20, (cm, text)
+        seen.append(text)
+    assert len(set(seen)) >= 4, f"anchors barely vary: {set(seen)}"
+
+
+def test_camera_distance_geometry_round_trips(server, browser_ctx):
+    """The iris is 11.71 mm across in nearly everyone, so its pixel size ranges
+    the face. Converting needs a focal length the browser will not give us, so a
+    typical field of view is assumed — good to roughly a fifth, which is useless
+    as a measurement and useful for catching a grossly wrong slider."""
+    page, _ = _page(browser_ctx, server)
+    got = page.evaluate("""() => {
+      const d = window.__vsDistance;
+      if (!d) return null;
+      const w = 1280;
+      const focal = (w / 2) / Math.tan((d.ASSUMED_HFOV_DEG * Math.PI / 180) / 2);
+      const r = (focal * d.IRIS_MM) / (2 * 500);
+      return {round: d.cameraDistanceCm(r, w),
+              nearer: d.cameraDistanceCm(r * 2, w),
+              none: d.cameraDistanceCm(0, w)};
+    }""")
+    assert got is not None, "distance helpers not exposed"
+    assert 48 <= got["round"] <= 52, got
+    assert 23 <= got["nearer"] <= 27, got
+    assert got["none"] is None
+
+
+def test_distance_check_is_silent_until_it_has_samples(server, browser_ctx):
+    page, _ = _page(browser_ctx, server)
+    assert page.get_attribute("#distanceCheck", "hidden") is not None

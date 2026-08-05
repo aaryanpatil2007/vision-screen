@@ -22,7 +22,6 @@
     VisionScreen
   </div>
   <div class="spacer"></div>
-  <span class="pill">research prototype</span>
 </header>
 
 <main>
@@ -37,7 +36,7 @@
     <div class="hero">
       <div class="hero-copy">
         <p class="eyebrow">thirteen tests · fifteen minutes · analysed locally</p>
-        <h1 class="display">Your eyes,<br>measured in<br><em>the dark.</em></h1>
+        <h1 class="display">Your eyes,<br>measured by<br><em>your webcam.</em></h1>
         <p class="lede">
           A vision screening battery that runs entirely in this browser. It reads
           letters, contrast, colour, depth and the central field — then watches your
@@ -200,13 +199,65 @@
           the camera tracks it and corrects your result if you drift.
         </p>
         <input type="range" id="distance" min="30" max="100" value="50">
-        <p class="hint" style="margin:0">
+        <p class="hint" style="margin:0 0 .4rem">
           <strong id="distanceVal" style="font-family:var(--mono);font-size:1.1rem">50</strong> cm
         </p>
+        <p class="hint dist-anchor" id="distanceAnchor" style="margin:0"></p>
+        <p class="hint" id="distanceCheck" hidden style="margin:.6rem 0 0"></p>
       </div>
 
       <div class="card">
         <div class="step-label">Step four</div>
+        <h2>About you</h2>
+        <p class="hint">
+          Age changes what a result means more than anything else here. The same
+          slightly-reduced contrast is unremarkable at twenty-five and worth
+          checking at seventy-five. Without it, results are read against a
+          forty-five-year-old.
+        </p>
+        <label class="hint" for="age" style="display:block;margin-bottom:.35rem">Age in years</label>
+        <input type="number" id="age" min="3" max="110" step="1" placeholder="optional"
+               style="width:8rem;font-family:var(--mono);font-size:1.05rem;padding:.5rem .6rem;
+                      background:transparent;color:inherit;border:1px solid var(--line);border-radius:8px">
+
+        <p class="hint" style="margin:1.4rem 0 .5rem">
+          Are you wearing glasses or contacts right now?
+        </p>
+        <div class="correction-row">
+          <label><input type="radio" name="correction" value="none" checked> Nothing — my eyes as they are</label>
+          <label><input type="radio" name="correction" value="glasses"> Glasses</label>
+          <label><input type="radio" name="correction" value="contacts"> Contact lenses</label>
+        </div>
+        <p class="hint" style="margin:.5rem 0 0;font-size:.84rem">
+          This changes what the results mean, not just how precise they are. Without
+          correction the test estimates your focusing error. With it, the test measures
+          how well your current prescription is working — so anything it finds is what
+          your lenses are <em>not</em> already fixing.
+        </p>
+
+        <p class="hint" style="margin:1.4rem 0 .5rem">
+          Anything you have noticed? Some things cannot be measured through a camera
+          at all — these are the ones only you can report.
+        </p>
+        <div id="symptoms" class="symptom-grid">
+          <label><input type="checkbox" value="sudden_flashes"> Sudden flashes of light</label>
+          <label><input type="checkbox" value="new_floaters"> A shower of new floaters</label>
+          <label><input type="checkbox" value="curtain_shadow"> A shadow or curtain across vision</label>
+          <label><input type="checkbox" value="double_vision"> Double vision</label>
+          <label><input type="checkbox" value="central_blur"> Blur in the centre of vision</label>
+          <label><input type="checkbox" value="distorted_lines"> Straight lines look bent</label>
+          <label><input type="checkbox" value="glare"> Glare or haloes around lights</label>
+          <label><input type="checkbox" value="eye_strain_reading"> Tired eyes when reading</label>
+          <label><input type="checkbox" value="grittiness"> Gritty or burning eyes</label>
+        </div>
+        <p class="hint" style="margin-top:.7rem;font-size:.84rem">
+          Flashes, a burst of new floaters, or a shadow moving across your vision
+          together are an emergency — those need same-day attention, not a screening test.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="step-label">Step five</div>
         <h2>Can you darken the room?</h2>
         <p class="hint">
           Three of the thirteen tests — pupil response, refraction, and the alignment
@@ -233,7 +284,7 @@
       </div>
 
       <div class="card">
-        <div class="step-label">Step five</div>
+        <div class="step-label">Step six</div>
         <h2>Screen brightness</h2>
         <p class="hint">
           Turn brightness to at least 75%. Acuity standards call for 80–320 cd/m²; at a
@@ -253,7 +304,7 @@
       </div>
 
       <div class="card">
-        <div class="step-label">Step six</div>
+        <div class="step-label">Step seven</div>
         <h2>Before you start</h2>
         <div class="grid2" style="margin-top:1.2rem">
           <p class="hint"><strong>Keep your glasses or contacts on.</strong> Screening

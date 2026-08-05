@@ -145,6 +145,23 @@ class Staircase:
         return sum(tail) / len(tail)
 
 
+def _above_chance(correct: int, n: int, chance: float,
+                  alpha: float = 0.05) -> bool:
+    """One-sided exact binomial test that performance beats guessing.
+
+    Exact rather than normal-approximated because n is small (tens of trials)
+    and chance can be 0.10, where the normal approximation is poor precisely in
+    the tail that matters.
+    """
+    if n <= 0:
+        return False
+    from math import comb
+
+    tail = sum(comb(n, k) * chance ** k * (1 - chance) ** (n - k)
+               for k in range(correct, n + 1))
+    return tail < alpha
+
+
 def score_trials(trials: list[dict], display_floor: float | None = None,
                  optotype: Optotype | str = TUMBLING_E) -> Finding:
     if isinstance(optotype, str):
@@ -183,7 +200,16 @@ def score_trials(trials: list[dict], display_floor: float | None = None,
     coarsest = max(lm for lm, _ in correct_at)
     at_coarsest = [ok for lm, ok in correct_at if lm >= coarsest - 1e-9]
     chance = optotype.guess_rate
-    if len(at_coarsest) >= 3 and (sum(at_coarsest) / len(at_coarsest)) <= chance + 1e-9:
+    # Requiring the staircase to have *parked* at the coarsest level is what
+    # separates "cannot see the biggest letter" from "answers were noise". A
+    # subject who truly sees nothing drives the level to the ceiling and stays
+    # there, so most trials land on one level; random input instead scatters
+    # trials across many levels while scoring chance on each. Without this
+    # share test, a scattered run that happened to miss its few coarsest trials
+    # would be reported as a confident "worse than 20/400".
+    coarsest_share = len(at_coarsest) / max(len(correct_at), 1)
+    if (len(at_coarsest) >= 3 and coarsest_share >= 0.25
+            and (sum(at_coarsest) / len(at_coarsest)) <= chance + 1e-9):
         return Finding(
             module="acuity",
             summary=(
@@ -202,6 +228,41 @@ def score_trials(trials: list[dict], display_floor: float | None = None,
                 "optotype": optotype.name,
             },
         )
+
+    # --- is this a measurement at all? ---
+    # A staircase converges because the answers carry information. If the
+    # responses are indistinguishable from guessing, the level random-walks
+    # around wherever it started and the reversal mean returns that starting
+    # value with false precision. That is what a broken input, a misunderstood
+    # instruction or an unreadable display produces — and from the numbers
+    # alone it is indistinguishable from a real threshold unless checked.
+    #
+    # Reporting "20/200, measured" from noise is the worst failure this module
+    # can produce, because it is confidently wrong about someone who may be fine.
+    n_correct = sum(1 for _, ok in correct_at if ok)
+    if not _above_chance(n_correct, n, optotype.guess_rate):
+        return Finding(
+            module="acuity",
+            summary=(
+                f"Only {n_correct} of {n} letters were answered correctly — no "
+                f"better than guessing at {optotype.guess_rate:.0%} chance. No "
+                "acuity can be read from that. Usually it means the letters "
+                "were not visible, the buttons were not doing what was "
+                "expected, or the test was rushed; it does not by itself mean "
+                "anything about your vision."
+            ),
+            tier="inconclusive",
+            metrics={"trials": n, "correct": n_correct,
+                     "chance_rate": optotype.guess_rate,
+                     "rejected_reason": "responses no better than chance"},
+            retakes=[
+                "Retake the letter test, answering every letter deliberately — "
+                "guess only when you genuinely cannot tell.",
+                "If the letters looked clear but the answer buttons felt wrong, "
+                "that is a bug worth reporting rather than a result.",
+            ],
+        )
+
 
     if len(reversals) >= 2:
         tail = reversals[-MAX_REVERSALS:]

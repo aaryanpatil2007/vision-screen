@@ -13,6 +13,7 @@ from visionscreen.analyzer import analyze_session
 from visionscreen.ml.infer import EyeSegmenter
 from visionscreen.modules.acuity import letter_height_px
 from visionscreen.protocol import SessionMeta
+from visionscreen.diagnosis import differential_from_findings
 from visionscreen.report import render_html
 
 STATIC = Path(__file__).parent / "static"
@@ -88,4 +89,16 @@ async def analyze(video: UploadFile, meta: str = Form(...)) -> HTMLResponse:
         "analyzed session=%s segments=%d findings=%d in %.1fs",
         session.session_id, len(session.segments), len(findings), time.time() - started,
     )
-    return HTMLResponse(render_html(findings, session.session_id))
+    # The differential must never take the report down with it: a run that
+    # produced usable measurements is still worth showing even if the
+    # interpretation layer fails, so this degrades to the findings alone.
+    conditions = []
+    try:
+        conditions = differential_from_findings(
+            findings, age=session.age_years, symptoms=set(session.symptoms or []))
+    except Exception:
+        log.exception("differential failed; showing findings only")
+
+    return HTMLResponse(render_html(findings, session.session_id,
+                                    conditions=conditions,
+                                    correction=session.wearing_correction))

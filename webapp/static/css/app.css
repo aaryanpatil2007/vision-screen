@@ -443,3 +443,25 @@ footer.foot a { color: var(--amber-soft); }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
   html { scroll-behavior: auto; }
 }
+
+
+/* Intake symptom checklist. Two columns above phone width — nine single-file
+   rows reads as a long form and gets skipped, and these are the only findings
+   the camera cannot reach on its own. */
+.symptom-grid { display: grid; grid-template-columns: 1fr; gap: .55rem .9rem; margin: .3rem 0 0; }
+@media (min-width: 620px) { .symptom-grid { grid-template-columns: 1fr 1fr; } }
+.symptom-grid label { display: flex; gap: .55rem; align-items: flex-start; cursor: pointer;
+                      font-size: .92rem; color: var(--muted); line-height: 1.35; }
+.symptom-grid input { margin-top: .2rem; flex: none; }
+.correction-row { display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; margin: .2rem 0 0; }
+.correction-row label { display: flex; gap: .5rem; align-items: center; cursor: pointer;
+                        font-size: .92rem; color: var(--muted); }
+.correction-row input { flex: none; }
+
+/* Distance setup. The anchor turns an abstract number into something the person
+   can hold against their own arm; the check reports what the camera makes of it.
+   That estimate assumes a typical webcam field of view and is good to about a
+   fifth either way, so it is styled as a note, never an error. */
+.dist-anchor { color: var(--muted); font-size: .92rem; line-height: 1.45; }
+.dist-ok { color: #8bd4a0; font-size: .88rem; }
+.dist-warn { color: #ffd08a; font-size: .88rem; line-height: 1.45; }

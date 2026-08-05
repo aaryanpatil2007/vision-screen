@@ -1,4 +1,21 @@
-results/
+# Virtual environment — ~11,000 files. Recreate with:
+#   python3.12 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/
 __pycache__/
-data/real/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.DS_Store
+
+# Datasets. Every one is public and fetched by its own benchmark script, so
+# committing them adds gigabytes and buys nothing. The OpenEDS archive alone is
+# 1.6 GB, which exceeds GitHub's per-file limit outright.
+data/
+
+# Trained weights — reproduce with the benchmark commands in the README.
+models/
+*.pt
+
+# Benchmark output. Regenerate rather than track, so a stale number can never
+# be mistaken for a current one.
+results/

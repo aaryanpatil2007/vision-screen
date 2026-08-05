@@ -63,12 +63,31 @@ class Session {
     seg.events.push({ ts: this.now(), kind, payload });
   }
   close(seg) { seg.end_ts = this.now(); }
+  readIntake() {
+    const ageEl = document.getElementById('age');
+    const age = ageEl ? Number(ageEl.value) : NaN;
+    // reject nonsense rather than passing it through: an age of 0 or 900 would
+    // skew every base rate in the differential
+    this.ageYears = Number.isFinite(age) && age >= 3 && age <= 110 ? age : null;
+    const corr = document.querySelector('input[name=correction]:checked');
+    this.wearingCorrection = corr ? corr.value : null;
+    this.symptoms = Array.from(
+      document.querySelectorAll('#symptoms input[type=checkbox]:checked'),
+    ).map((el) => el.value);
+  }
+
   toJSON(fps) {
     return JSON.stringify({
       session_id: crypto.randomUUID(),
       px_per_cm: this.pxPerCm,
       distance_cm: this.distanceCm,
       fps,
+      // All optional. Age drives every prevalence in the interpretation layer;
+      // correction decides what the numbers *mean*; the symptoms are findings a
+      // camera cannot reach at all.
+      age_years: this.ageYears ?? null,
+      wearing_correction: this.wearingCorrection ?? null,
+      symptoms: this.symptoms ?? [],
       segments: this.segments.map((s) => ({ ...s, end_ts: s.end_ts ?? this.now() })),
     });
   }
@@ -116,7 +135,10 @@ class App {
     await video.play();
     this.tracker = new EyeTracker(video, $("#overlay"));
     await this.tracker.init();
-    this.tracker.onFrame = (eyes, stats) => this.renderStats(eyes, stats);
+    this.tracker.onFrame = (eyes, stats) => {
+      this.renderStats(eyes, stats);
+      if (this.onDistanceSample) this.onDistanceSample(eyes);
+    };
     this.tracker.start();
   }
 
@@ -679,6 +701,9 @@ class App {
   }
 
   async runAll() {
+    // Capture before the intro panel is hidden — the inputs stay in the DOM,
+    // but reading here ties the snapshot to when the session actually starts.
+    this.session.readIntake();
     $("#intro").hidden = true;
     $("#railwrap").hidden = false;
     $("#camPanel").classList.add("floating");
@@ -809,10 +834,77 @@ window.addEventListener("DOMContentLoaded", async () => {
   slider.addEventListener("input", updateCard);
   updateCard();
 
-  $("#distance").addEventListener("input", (e) => {
-    app.session.distanceCm = +e.target.value;
-    $("#distanceVal").textContent = e.target.value;
-  });
+  // Nobody knows what 50 cm looks like. Every anchor is something already on
+  // the person or the desk, with real sizes: A4's long edge is 29.7 cm, adult
+  // elbow-to-fingertip averages ~45 cm, and eye-to-fingertip with the arm
+  // straight out is ~60-65 cm.
+  const DISTANCE_ANCHORS = [
+    { max: 34, text: "About the long edge of a sheet of paper, stood upright — or the width of a small laptop." },
+    { max: 42, text: "A bit more than a sheet of paper on its end. Closer than most people sit to a laptop." },
+    { max: 52, text: "About your forearm — elbow on the desk, fingertips at the screen." },
+    { max: 58, text: "Forearm plus a hand. A typical comfortable laptop distance." },
+    { max: 68, text: "About arm's length: reach out and your knuckles should just touch the screen." },
+    { max: 80, text: "Arm's length and then some — you should have to lean forward to touch the screen." },
+    { max: 999, text: "Well beyond arm's length. Usual for a desktop monitor, not a laptop." },
+  ];
+  const anchorFor = (cm) => DISTANCE_ANCHORS.find((a) => cm <= a.max).text;
+
+  const distHint = $("#distanceAnchor");
+  const distCheck = $("#distanceCheck");
+
+  function updateDistance(cm) {
+    app.session.distanceCm = cm;
+    $("#distanceVal").textContent = cm;
+    if (distHint) distHint.textContent = anchorFor(cm);
+  }
+  $("#distance").addEventListener("input", (e) => updateDistance(+e.target.value));
+  updateDistance(app.session.distanceCm);
+
+  // Live cross-check. The iris is 11.71 mm across in almost everyone (SD 0.42),
+  // so its pixel size ranges the face — but converting to centimetres needs the
+  // camera's focal length, which the browser does not expose. This assumes a
+  // typical webcam field of view, so it is good to roughly +/-20% and no better.
+  // Useless as a measurement, genuinely useful as a sanity check: it catches
+  // someone at 30 cm who set the slider to 60, which would bias every acuity
+  // result by a factor of two. Labelled rough, never overrides what they set.
+  const ASSUMED_HFOV_DEG = 65;
+  const IRIS_MM = 11.71;
+
+  function cameraDistanceCm(irisRadiusPx, frameWidthPx) {
+    if (!irisRadiusPx || !frameWidthPx) return null;
+    const focalPx = (frameWidthPx / 2) / Math.tan((ASSUMED_HFOV_DEG * Math.PI / 180) / 2);
+    return ((focalPx * IRIS_MM) / (2 * irisRadiusPx)) / 10;
+  }
+  window.__vsDistance = { cameraDistanceCm, anchorFor, ASSUMED_HFOV_DEG, IRIS_MM };
+
+  let distSamples = [];
+  if (distCheck) {
+    app.onDistanceSample = (data) => {
+      if (!data || !data.left || !data.right) return;
+      const r = (data.left.radius + data.right.radius) / 2;
+      const w = app.tracker && app.tracker.video ? app.tracker.video.videoWidth : 0;
+      const cm = cameraDistanceCm(r, w);
+      if (!cm || !isFinite(cm)) return;
+      distSamples.push(cm);
+      if (distSamples.length > 45) distSamples.shift();
+      if (distSamples.length < 15) return;
+      const sorted = [...distSamples].sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      const stated = app.session.distanceCm;
+      distCheck.hidden = false;
+      if (Math.abs(median - stated) / stated <= 0.2) {
+        distCheck.className = "hint dist-ok";
+        distCheck.textContent = `Camera agrees — it puts you at roughly ${Math.round(median)} cm.`;
+      } else {
+        distCheck.className = "hint dist-warn";
+        distCheck.textContent =
+          `The camera makes it roughly ${Math.round(median)} cm, not ${stated}. This estimate ` +
+          `is only good to about a fifth either way, so trust your own measurement if you took ` +
+          `one — but a gap this large usually means the slider is off, and distance scales ` +
+          `every result on the chart.`;
+      }
+    };
+  }
 
   // Grey ramp: a subjective check that the dark end of the display is not
   // crushed. Standards want 80-320 cd/m2 and the browser cannot measure it.

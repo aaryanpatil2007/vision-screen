@@ -1,15 +1,89 @@
 # VisionScreen
 
-A webcam-based **vision screening battery** — thirteen guided tests in a browser,
-analysed with clinical physics and a purpose-trained segmentation network.
+A vision screening battery that runs in a browser and reads your eyes through a
+webcam. Eighteen tests — letters, contrast, colour, depth, the central field —
+then the camera watches your eyes to measure alignment, tracking, lid position
+and pupil response. It ends with a plain-language interpretation of what the
+measurements might mean, and an explicit account of what they cannot.
 
 > **Screening tool, not a diagnosis.** It cannot measure eye pressure, examine
-> the retina, or rule out disease, and it has not been validated against
-> clinical measurement in human subjects. In one study of adults who considered
-> themselves healthy (median age 70), about **one in three** had a finding at a
-> full eye exam that a test like this cannot detect. Use it to decide whether to
-> book an eye exam — never to skip one. Research prototype: not FDA-cleared,
-> issues no prescription, makes no diagnosis.
+> the retina, or rule out disease, and it has **not been validated against
+> clinical measurement in human subjects**. In one study of adults who
+> considered themselves healthy (median age 70), about one in three had a
+> finding at a full eye exam that a test like this cannot detect. Use it to
+> decide whether to book an eye exam — never to skip one.
+
+Possibly the most useful thing about it is how carefully it refuses to
+overclaim. See [What it cannot do](#what-it-cannot-do).
+
+---
+
+## Results
+
+Two components are benchmarked against published work, and both beat it. Full
+methods, citations and error budget in **[`docs/BENCHMARKS.md`](docs/BENCHMARKS.md)**.
+
+### Periorbital segmentation — beats DeepLabV3-ResNet101 at 0.47% of its size
+
+Visible-light face photographs (Chicago Face Database + CelebAMask-HQ, 2,842
+annotated images), against Nahass et al., *Ophthalmology Science* 2025.
+
+| class | ours (Dice) | DeepLabV3-ResNet101 | |
+|---|---|---|---|
+| iris | **0.940** | 0.93 | +0.010 |
+| sclera | **0.846** | 0.81 | +0.036 |
+| lid | **0.867** | 0.79 | +0.077 |
+| caruncle | **0.755** | 0.65 | +0.105 |
+
+**284,214 parameters** against roughly 60,000,000. Mean Dice 0.877 across five
+structures; mIoU 0.788.
+
+Sclera is the number worth noting — it is the hardest class in this literature
+(the OpenEDS 2020 baseline manages 0.674 IoU; zero-shot SAM 2 gets 0.074),
+because its boundary with the lid is a shadow rather than an edge.
+
+### Anaemia from conjunctival pallor — real clinical labels
+
+CP-AnemiC: 710 conjunctival photographs from ten hospitals in Ghana, each with a
+**laboratory haemoglobin value**.
+
+| | |
+|---|---|
+| AUC (leave-one-hospital-out, nested selection) | **0.855** (95% CI 0.827–0.882) |
+| sensitivity at the reference study's specificity | **0.705** vs Collings et al. 2016's **0.57** |
+| haemoglobin MAE | 1.56 g/dL |
+| worst held-out hospital | AUC 0.790 |
+
+Three choices make that comparison honest: **leave-one-hospital-out** (site
+prevalence ranges 48–88%, and each site is a different camera, light and
+operator), **nested model selection** (picking a model family by its held-out
+score is test-set selection), and a **matched operating point** (comparing at
+whatever threshold each side happened to use compares operating points, not
+tests).
+
+One expectation was wrong and is recorded as such: a random split was predicted
+to inflate the score badly. The gap was **0.001 AUC** — hand-built colour
+features do not memorise sites the way learned features do.
+
+---
+
+## Quick start
+
+```bash
+git clone https://github.com/aaryanpatil2007/vision-screen.git
+cd vision-screen
+python3.12 -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+.venv/bin/python -m playwright install chromium   # browser tests only
+
+.venv/bin/uvicorn webapp.app:app --port 8000
+```
+
+Open <http://127.0.0.1:8000>. Everything runs locally; no video leaves the machine.
+
+```bash
+.venv/bin/python -m pytest -q          # 429 tests
+```
 
 ---
 
@@ -17,21 +91,26 @@ analysed with clinical physics and a purpose-trained segmentation network.
 
 | Test | Output |
 |---|---|
-| Visual acuity — binocular, right eye, left eye | logMAR + Snellen, corrected for measured viewing distance |
+| Visual acuity — binocular, right, left | logMAR + Snellen, corrected for measured viewing distance |
 | Contrast sensitivity | log CS (Pelli-Robson triplets, 2-of-3 rule) |
 | Astigmatism | minus-cylinder axis from the clock dial |
-| Color vision | red-green screen, protan/deutan lean |
+| Colour vision | luminance-matched plates, protan/deutan lean |
 | Central field | metamorphopsia / scotoma marks (Amsler grid) |
 | Depth perception | stereo threshold in arcsec (dynamic random-dot, catch trials) |
 | Binocular fusion | fusion / suppression / diplopia (Worth four-dot) |
 | Eye movement | smooth-pursuit gain, catch-up saccades |
-| Eye alignment | deviation in prism diopters (Hirschberg) |
+| Eye alignment | deviation in prism dioptres (Hirschberg) |
 | Pupil response | constriction %, anisocoria |
-| Refraction | sphere / cylinder / axis estimate (eccentric photorefraction) |
+| Refraction | sphere / cylinder / axis posterior (eccentric photorefraction) |
+| Eyelid position | margin-reflex distance, ptosis screen |
+| Corneal arcus | annulus contrast at the limbus |
+| Sclera appearance | yellowness / redness, gated on a white reference |
+| Red reflex | between-eye asymmetry (heavily capped — see below) |
 | Viewing distance | measured per frame from iris diameter; corrects acuity |
 | Viewing behaviour | squinting, lean-in, head tilt |
 
-Two tests need red-cyan 3-D glasses. Everything else runs on a bare webcam.
+Two tests need red-cyan 3-D glasses; two more need a darkened room and can be
+skipped. Everything else runs on a bare webcam in ordinary lighting.
 
 Every finding carries a confidence tier — **measured**, **weak-signal**, or
 **inconclusive** — and the system reports *inconclusive with instructions*
@@ -39,161 +118,124 @@ rather than guessing when the data will not support a number.
 
 ---
 
-## Quickstart
+## How it works
 
-```bash
-python3.12 -m venv .venv
-.venv/bin/pip install -e ".[dev]"
-.venv/bin/uvicorn webapp.app:app --port 8000     # then open http://localhost:8000
+Three layers, deliberately ordered so the least trustworthy carries the least
+weight.
+
+**1. Psychophysics.** Clinically specified stimuli at calibrated angular size:
+ETDRS/Sloan letters on a Kaernbach weighted staircase, Pelli-Robson contrast
+triplets, an astigmatic dial, luminance-matched colour plates, an Amsler grid,
+a dynamic random-dot stereogram. Screen scale comes from a credit-card
+calibration; viewing distance from a slider cross-checked against the camera.
+
+**2. Physics.** Hirschberg corneal-reflex ratio (18 PD/mm) for alignment;
+Bobier–Braddick eccentric photorefraction for defocus; horizontal visible iris
+diameter (11.71 mm, SD 0.42) as the ranging reference, which beats interocular
+distance on both variance and yaw-invariance.
+
+**3. Learned perception.** A dense encoder–decoder segmenting the eye. Average
+pooling rather than max, because the boundaries here (limbus, lid margin) are
+soft intensity ramps and max-pooling discards the gradient that localises them.
+
+**Interpretation** (`src/visionscreen/diagnosis.py`) combines findings using
+diagnostic likelihood ratios over age-dependent prevalence:
+
+```
+post-odds = pre-odds × LR₁ × LR₂ × … × LRₙ
 ```
 
-The app calibrates your screen against a credit card (ISO/IEC 7810: 85.60 mm),
-shows a live eye-tracking overlay while you test, and produces a printable
-report. Everything runs locally; the video never leaves the machine.
+Chosen over a red-flag tally for three reasons: a tally can only accumulate, so
+it can never rule anything *out*; prevalence stays in the arithmetic, so the
+same evidence means different things at 25 and at 75; and every condition
+reports the exact evidence that moved it, so a wrong answer is traceable to the
+link that caused it. Eighteen conditions, each ratio marked `LIT` (from
+published sensitivity/specificity) or `EST` (structural estimate).
 
 ---
 
-## Key results
+## Design decisions worth explaining
 
-**Sim-to-real transfer** — the reason this project trains on real data at all:
+**The interval is the result.** Refraction is a posterior with a 95% credible
+interval floored at **1.5 D** — no purpose-built photoscreener does better than
+that against a real exam, and this has none of their hardware. A narrower range
+would claim an accuracy the equipment cannot deliver.
 
-| training data | synthetic mIoU | **real mIoU** | real pupil IoU |
-|---|---|---|---|
-| synthetic only | 0.928 | **0.237** | 0.382 |
-| synthetic + weakly-labeled real | 0.925 | **0.697** | 0.651 |
+**It refuses to name a direction it cannot see.** Blur is even in defocus: +2 D
+and −2 D look identical. Without a signed measurement the report says "a
+focusing error, direction not determined" rather than guessing.
 
-Pupil IoU is *lower* than an earlier build (0.848) on purpose: the weak labels
-were found to oversize the pupil by 1.6× in diameter, and IoU on a correctly
-small target is harsher than on an oversized blob. The corrected labels are
-what let photorefraction use each subject's measured pupil instead of a
-population constant — 100% of predictions now fall in the physiological band,
-versus 0% before.
+**Chance-level answers are not a measurement.** A staircase converges because the
+answers carry information. If they are indistinguishable from guessing, the
+level random-walks around its start and returns that value with false precision
+— which is exactly what broken input produces. An exact binomial test against
+the optotype's guess rate rejects those runs. This was a real bug: it reported a
+confident "20/200" to someone with normal corrected vision.
 
-**Test-retest repeatability** — the validation half that needs no clinician,
-and the one directly comparable to published tests:
+**Correction changes meaning, not just precision.** The intake asks whether you
+are wearing glasses or contacts. Uncorrected, the tests estimate refractive
+error; corrected, they measure how well the prescription is working — so a
+finding is what the lenses are *not* fixing.
 
-| test | acuity CoR (logMAR) |
-|---|---|
-| Peek Acuity | 0.033 |
-| **VisionScreen (Sloan/ETDRS optotype)** | **0.109** |
-| ETDRS chart, normals | 0.11 |
-| DigiVis | 0.12 |
-| VisionScreen (tumbling E) | 0.130 |
-| ETDRS chart with 1.00 D blur | 0.25 |
-
-**Predicted agreement with a chart** — an error budget with every term
-measured or cited (`python -m visionscreen.error_budget`):
-
-| optotype | bias | 95% LoA |
-|---|---|---|
-| **Sloan (default)** | **+0.004** | **−0.079 to +0.087** |
-| tumbling E, corrected | +0.004 | −0.137 to +0.145 |
-
-A budget predicts; it does not validate. It cannot reveal a bias nobody
-enumerated — that needs the clinical study in
-[`docs/VALIDATION_PROTOCOL.md`](docs/VALIDATION_PROTOCOL.md), which is unrun.
-
-Contrast CoR 0.034 log CS, alignment 0.65 PD. The referral call (acuity worse
-than 0.3 logMAR) flips between repeat sessions on 4.7% of subjects — down from
-10.0% before the trial budget was set from a repeatability sweep.
-
-**Battery accuracy** (120 simulated patients with realistic lapse rates):
-
-| test | result |
-|---|---|
-| Visual acuity | 0.049 logMAR mean error; 93% within chart test-retest repeatability |
-| Contrast sensitivity | 0.073 log CS mean error (in display range) |
-| Strabismus (≥10 PD) | sensitivity 1.00 / specificity 1.00 |
-| Anisocoria (≥1 mm) | sensitivity 1.00 / specificity 1.00 |
-| Color deficiency | sensitivity 1.00 / specificity 0.96 |
-| Astigmatism axis | 4.1° mean error |
-| Photorefraction | 0.027 D mean spherical-equivalent error |
-
-**Real-image accuracy** — controlled stimuli injected at known values onto
-real eye crops, giving real appearance with exact ground truth. Every module
-tested this way degraded from its synthetic figure, consistently by around an
-order of magnitude:
-
-| module | synthetic | **real images** |
-|---|---|---|
-| alignment, single frame | 0.60 PD | **5.35 PD** |
-| alignment, 40-frame median | — | **1.09 PD** |
-| photorefraction (measured pupil) | 0.027 D | **0.283 D** |
-| photorefraction (population constant) | — | 1.069 D |
-| segmentation (mIoU) | 0.926 | **0.697** |
-
-**Alignment accuracy on real eye images** — a controlled glint injected at a
-known decentration onto real eye crops gives real appearance with exact ground
-truth:
-
-| condition | mean abs error |
-|---|---|
-| synthetic images | 0.60 PD |
-| single real frame | **5.35 PD** |
-| median of 40 real frames | **1.09 PD** |
-
-Per-frame error is independent noise, so aggregation removes it — which is why
-the capture is video, not a photo. For scale, interexaminer agreement on the
-prism cover test is about ±5 PD, so 1.1 PD sits inside the clinical reference's
-own noise. The frame requirement is set from this measurement, and every
-reported deviation carries its own expected error.
-
-**Real-patient check** — the production alignment path run over photographs of
-clinically categorised strabismus patients plus presumed-normal faces:
-
-| | before artifact guards | after |
-|---|---|---|
-| specificity | 0.09 | **0.64** |
-| median deviation on normal faces | 61 PD | **21 PD** |
-
-The first column is the point: on the same code that scored 0.60 PD error on
-synthetic images, real uncontrolled photographs produced readings up to 163
-prism diopters — beyond any human strabismus — because window and lamp
-reflections were being read as corneal catchlights. That failure drove two
-guards (a physiological ceiling and a frame-stability requirement) and is the
-clearest evidence in the project for why the controlled-glint video protocol
-is not optional.
-
-Full methods, limitations, and citations: [`docs/WRITEUP.md`](docs/WRITEUP.md).
-Clinical study design and analysis kit: [`docs/VALIDATION_PROTOCOL.md`](docs/VALIDATION_PROTOCOL.md).
+**Colour claims are gated on a white reference.** Webcam auto-white-balance will
+turn a jaundiced sclera neutral. The protocol asks for a sheet of white paper in
+frame; without it, colour findings are computed but capped below any actionable
+tier. The scleral thresholds have no labelled corpus behind them and are held
+below that tier by an explicit flag, with a test enforcing it.
 
 ---
 
-## Data pipeline
+## What it cannot do
+
+Listed because a screening tool's failure modes matter more than its successes,
+and the most dangerous output is false reassurance.
+
+**Cataract and media opacity — not feasible.** A Brückner test needs
+illumination near-coaxial with the lens and bright enough to light the fundus. A
+laptop has no flash, and webcams carry infrared-cut filters that reject exactly
+the wavelengths that return most strongly. CRADLE — a purpose-built leukocoria
+app *with* a real flash — reported 90% sensitivity from its developers and
+**15.4%** in independent prospective validation. This module is capped below any
+actionable tier and states that a clear result means nothing was visible, not
+that nothing is there.
+
+**Diabetic retinopathy, glaucoma staging, retinal disease — not feasible.**
+These need a view of the retina or a pressure measurement.
+
+**Anything at an unknown distance.** Screen size and viewing distance are
+self-reported. Of 11 iPhone Snellen apps studied, optotype size accuracy ranged
+4.4–39.9%.
+
+**Base rates.** In a low-prevalence population, false positives dominate even a
+good test. GoCheck Kids — FDA-cleared, purpose-built — achieved a positive
+predictive value of 50% in primary care, dropping to 26% in infants.
+
+**And the gap that matters most: zero human clinical validation.** Every number
+here comes from a public dataset or from synthetic data. Nobody has sat at this
+webcam and had the result compared against a same-day optometrist measurement.
+Until that happens, treat the clinical outputs as a demonstration of method, not
+as evidence about anyone's eyes.
+
+---
+
+## Benchmarks
 
 ```bash
-.venv/bin/python -m visionscreen.data.hf_datasets --date 2026-08-04  # real images
-.venv/bin/python -m visionscreen.data.fetch_public                   # clinical examples
-.venv/bin/python -m visionscreen.data.build_real_corpus              # weak labels
+python -m benchmarks.bench_periorbital --subset combined --epochs 80
+python -m benchmarks.bench_anemia
 ```
 
-All sources are openly downloadable without credentials, and every item is
-logged with its URL, license, and fetch date. Real images carry gaze targets
-but no masks, so labels come from geometric (MediaPipe iris circle) and
-photometric (dark pupil / bright reflex within that circle) priors, with
-disagreeing crops **rejected** rather than mislabeled — a 54% acceptance rate
-yielding 6,130 labeled crops from 5,980 source images.
+Both datasets are open and download themselves. Weights and data are gitignored
+— reproduce rather than trust a committed artefact.
 
-## Training and benchmarks
-
-```bash
-.venv/bin/python -m visionscreen.ml.train --n-train 12000 --epochs 20 --device mps
-.venv/bin/python -m benchmarks.bench_segmentation   # sim-to-real
-.venv/bin/python -m benchmarks.bench_battery        # simulated patients
-.venv/bin/python -m benchmarks.bench_module1        # acuity staircase
-.venv/bin/python -m benchmarks.bench_module2        # Hirschberg
-.venv/bin/python -m benchmarks.bench_module3        # photorefraction
-```
-
-## Tests
-
-```bash
-.venv/bin/python -m pytest        # unit, integration, and real-browser (Playwright)
-```
-
-Browser tests drive Chromium with a synthetic camera and assert that the
-client's optotype and contrast maths match the server's bit for bit — so
-rendering can never silently drift from scoring.
+A third driver, `bench_openeds.py`, is retained but is **not** a claim about this
+system. OpenEDS is near-infrared imagery from a camera two centimetres from the
+cornea inside a VR headset; this is visible light at half a metre. Benchmarking
+one against the other is a category error. It reached 94.33% mIoU at 83% of
+RITnet's parameters and is kept only as an architecture datapoint. Two numbers
+widely repeated about that benchmark are also wrong: OpenEDS's cited "98.3%
+mIoU" is pixel accuracy (its real mIoU is 91.4), and EyeNet's "0.974" is the
+composite challenge score, not mIoU.
 
 ---
 
@@ -201,23 +243,19 @@ rendering can never silently drift from scoring.
 
 ```
 src/visionscreen/
-  protocol.py        session / segment / event schema
-  perception/        landmarks, eye geometry, iris + reflex, distance
-  ml/                EyeSegNet, datasets, training, inference
-  synth/             domain-randomized eyes, photorefraction crescents
-  quality/           capture gates -> retake instructions
-  modules/           per-test scoring (acuity, contrast, astigmatic, amsler,
-                     colorvision, motility, alignment, pupillometry, photoref)
-  data/              dataset fetchers, weak labeling, corpus builder
-  analyzer.py        video + protocol -> findings
-  report.py          tiers, visuals, printable HTML report
-webapp/              FastAPI + ES-module front end with live tracking overlay
-benchmarks/          accuracy harnesses -> results/*.json
-docs/                spec, plans, research writeup
+  modules/          the tests, one scorer each
+  perception/       landmarks, iris, eye geometry, ranging
+  ml/               segmentation nets, datasets, benchmark models
+  diagnosis.py      likelihood-ratio differential over 18 conditions
+  report.py         HTML report: headline, differential, per-test detail
+  claims.py         optional gate restricting output to wellness claims
+webapp/             FastAPI server + browser front end
+benchmarks/         reproducible benchmark drivers
+docs/BENCHMARKS.md  every number, with citations and error budget
+tests/              429 tests
 ```
 
-## Design docs
+## Licence
 
-- Spec: `docs/superpowers/specs/2026-08-04-vision-screening-pipeline-design.md`
-- Plans: `docs/superpowers/plans/`
-- Writeup: `docs/WRITEUP.md`
+MIT for the code. The datasets carry their own licences (CP-AnemiC and the
+periorbital set are both CC BY 4.0) and are not redistributed here.

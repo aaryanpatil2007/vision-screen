@@ -1,8 +1,0 @@
-pyproject.toml
-src/visionscreen/__init__.py
-src/visionscreen.egg-info/PKG-INFO
-src/visionscreen.egg-info/SOURCES.txt
-src/visionscreen.egg-info/dependency_links.txt
-src/visionscreen.egg-info/requires.txt
-src/visionscreen.egg-info/top_level.txt
-tests/test_protocol.py

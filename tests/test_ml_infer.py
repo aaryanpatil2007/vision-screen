@@ -59,3 +59,24 @@ def test_confidence_reported(trained_segmenter):
     img, _, _ = render_labeled_eye(sample_params(rng), rng)
     res = trained_segmenter.segment(img)
     assert 0.0 <= res.confidence <= 1.0
+
+
+def test_training_is_reproducible_from_its_seed():
+    """`seed` once reached the dataset but not torch, so weight initialisation
+    was unseeded and every call trained a different network. Invisible in an
+    averaged metric, very visible on a single borderline case — it made the
+    reflex test pass alone and fail under load."""
+    from visionscreen.ml.train import train_model
+
+    def first_weights(seed=11):
+        m, _ = train_model(n_train=120, n_val=16, epochs=1, batch_size=16,
+                           out_size=(48, 64), seed=seed, device="cpu",
+                           lr=4e-3, log_every=0)
+        return next(iter(m.state_dict().values())).flatten()[:8].tolist()
+
+    a, b = first_weights(), first_weights()
+    for x, y in zip(a, b):
+        assert x == pytest.approx(y, abs=1e-4), (a, b)
+    # guard the other direction: a seed that changes nothing would mean the fix
+    # silently pinned every run to one network
+    assert first_weights(11) != first_weights(12)

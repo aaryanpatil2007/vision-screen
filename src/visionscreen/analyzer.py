@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import statistics
+
 import cv2
 import numpy as np
 
@@ -76,6 +78,106 @@ def _gaze_x(landmarks: np.ndarray, side: str) -> float | None:
     if hi - lo < 1e-6:
         return None
     return float((iris_center(landmarks, side)[0] - lo) / (hi - lo))
+
+
+def _anterior_frame(frame, landmarks, side, segmenter: EyeSegmenter | None) -> dict:
+    """Appearance measurements for one eye on one frame.
+
+    Separate from `_eye_measurements` because these are per-frame observations
+    aggregated by median across the session, whereas reflex and pupil feed
+    time-series analyses. Returns whatever it could measure; callers tolerate gaps.
+    """
+    from visionscreen.modules import anterior as ant
+    from visionscreen.perception.eyes import palpebral_aperture_px, upper_lid_point
+
+    h, w = frame.shape[:2]
+    out: dict = {}
+    crop_bgr, (ox, oy) = eye_crop(frame, landmarks, side)
+    if crop_bgr.size == 0:
+        return out
+    iris_d = iris_diameter_px(landmarks, side, w, h)
+    if iris_d < 8:
+        return out
+    px_per_mm = iris_d / HVID_MM
+    centre = tuple(iris_center(landmarks, side) * (w, h))
+
+    # Skip frames caught mid-blink: a half-closed lid reads as ptosis, and a
+    # session contains enough blinks that a few would manufacture a confident
+    # false finding.
+    if palpebral_aperture_px(landmarks, side, w, h) > 0.35 * iris_d:
+        lid = upper_lid_point(landmarks, side, w, h)
+        out["mrd1_mm"] = ant.measure_mrd1(lid[1], centre[1], px_per_mm)
+
+    seg = segmenter.segment(cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2GRAY)) \
+        if (segmenter and segmenter.available) else None
+    if seg is not None and seg.mask is not None:
+        from visionscreen.ml.model import IRIS_CLASS, PUPIL_CLASS, REFLEX_CLASS
+
+        gray = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2GRAY)
+        rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB)
+        # the net returns one class map, so per-structure masks are derived
+        # here; "iris" means the whole coloured disc, which is what the arcus
+        # annulus is measured relative to
+        iris_mask = ((seg.mask == IRIS_CLASS) | (seg.mask == PUPIL_CLASS)
+                     | (seg.mask == REFLEX_CLASS))
+        pupil_mask = seg.mask == PUPIL_CLASS
+        if iris_mask.shape[:2] != gray.shape[:2]:
+            rs = lambda m: cv2.resize(m.astype(np.uint8), (gray.shape[1], gray.shape[0]),
+                                      interpolation=cv2.INTER_NEAREST).astype(bool)
+            iris_mask, pupil_mask = rs(iris_mask), rs(pupil_mask)
+
+        local_c = (centre[0] - ox, centre[1] - oy)
+        if iris_mask.sum() > 40:
+            arc = ant.measure_arcus(gray, iris_mask, local_c, iris_d / 2)
+            if arc is not None:
+                out["arcus_contrast"] = arc
+        if pupil_mask.sum() > 30:
+            rf = ant.measure_red_reflex(rgb, pupil_mask)
+            if rf:
+                out["reflex_mean"], out["reflex_cv"] = rf["mean"], rf["cv"]
+    return out
+
+
+ANTERIOR_SAMPLE_EVERY = 15          # roughly twice a second at 30 fps
+MIN_ANTERIOR_SAMPLES = 5
+
+
+def _anterior_findings(obs: dict, meta) -> list:
+    """Aggregate per-frame appearance samples and score them.
+
+    Medians, not means: a single frame caught during a blink, a saccade or a
+    lighting change is exactly the outlier a mean would carry into the result.
+    A minimum sample count guards the other way — scoring two observations as
+    though they were a measurement is how a screening test invents findings.
+    """
+    from visionscreen.modules.anterior import (
+        score_arcus, score_ptosis, score_red_reflex,
+    )
+
+    def med(side, key):
+        vals = obs.get(side, {}).get(key) or []
+        return statistics.median(vals) if len(vals) >= MIN_ANTERIOR_SAMPLES else None
+
+    out = []
+    age = getattr(meta, "age_years", None)
+
+    lmr, rmr = med("left", "mrd1_mm"), med("right", "mrd1_mm")
+    if lmr is not None or rmr is not None:
+        out.append(score_ptosis(lmr, rmr, gaze_ok=True))
+
+    la, ra = med("left", "arcus_contrast"), med("right", "arcus_contrast")
+    if la is not None or ra is not None:
+        out.append(score_arcus(la, ra, age=age))
+
+    lm_, rm_ = med("left", "reflex_mean"), med("right", "reflex_mean")
+    if lm_ is not None or rm_ is not None:
+        def pack(m, cv):
+            return None if m is None else {
+                "mean": m, "cv": cv if cv is not None else 0.0,
+                "saturation": 0.5, "value": m, "pixels": 999}
+        out.append(score_red_reflex(pack(lm_, med("left", "reflex_cv")),
+                                    pack(rm_, med("right", "reflex_cv"))))
+    return out
 
 
 def _eye_measurements(frame, landmarks, side, segmenter: EyeSegmenter | None):
@@ -194,6 +296,7 @@ def analyze_session(video_path: Path, meta: SessionMeta,
     seg_pupil = meta.segment("pupil")
 
     frames: list[FrameSignals] = []
+    anterior_obs: dict[str, dict[str, list[float]]] = {}
     counts = {"total": 0, "gated": 0}
     per_segment_total: dict[str, int] = {}
     pr_estimates: list[tuple[float, float, float]] = []
@@ -267,6 +370,14 @@ def analyze_session(video_path: Path, meta: SessionMeta,
                             fs.decentration[side] = dec
                         if pupil_mm is not None:
                             fs.pupil_mm[side] = pupil_mm
+
+                # Appearance measurements are sampled rather than taken every
+                # frame: they are static properties of the eye, so a median over
+                # a few dozen well-conditioned frames is cheaper and steadier.
+                if idx % ANTERIOR_SAMPLE_EVERY == 0:
+                    for side in ("left", "right"):
+                        for k, v in _anterior_frame(frame, lm, side, segmenter).items():
+                            anterior_obs.setdefault(side, {}).setdefault(k, []).append(v)
                 frames.append(fs)
     finally:
         cap.release()
@@ -468,5 +579,7 @@ def analyze_session(video_path: Path, meta: SessionMeta,
     ):
         pr_valid = (pr_usable / pr_total) if pr_total else 0.0
         findings.append(score_photoref(pr_estimates, pr_dead, pr_valid))
+
+    findings.extend(_anterior_findings(anterior_obs, meta))
 
     return findings
