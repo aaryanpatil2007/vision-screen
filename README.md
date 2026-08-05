@@ -1,11 +1,11 @@
 # VisionScreen
 
 A vision screening battery that runs in a browser and reads your eyes through a
-webcam. Thirteen guided tests — letters, contrast, colour, depth, the central
-field — while the camera watches your eyes for alignment, tracking, lid position
-and pupil response, and takes a further set of measurements passively from the
-same video. It ends with a ranked differential — what the numbers most likely
-mean, with the evidence behind each one shown.
+webcam. Eighteen measurements: thirteen guided tests — letters, contrast,
+colour, depth, the central field — while the camera watches your eyes for
+alignment, tracking, lid position and pupil response, and takes the rest
+passively from the same video. It ends with a ranked differential — what the
+numbers most likely mean, with the evidence behind each one shown.
 
 <p align="center">
   <img src="docs/media/tracking.gif" alt="Live iris and lid tracking during a session" width="820">
@@ -20,7 +20,7 @@ mean, with the evidence behind each one shown.
 </tr>
 <tr>
 <td><em>Setup — screen calibration and viewing distance, measured before anything is scored.</em></td>
-<td><em>The astigmatic dial, one of the thirteen guided tests.</em></td>
+<td><em>The astigmatic dial, one of the guided tests.</em></td>
 </tr>
 </table>
 
@@ -122,10 +122,10 @@ Open <http://127.0.0.1:8000>. Everything runs locally; no video leaves the machi
 | Viewing distance | measured per frame from iris diameter; corrects acuity |
 | Viewing behaviour | squinting, lean-in, head tilt |
 
-Thirteen of these are guided steps you actively take; the rest — lid position,
-corneal arcus, red reflex, viewing distance and viewing behaviour — are measured
-passively from the same video, which is why a report lists more findings than
-there were tests.
+Eighteen findings in all. Thirteen come from guided steps you actively take;
+the rest — lid position, corneal arcus, red reflex, viewing distance and viewing
+behaviour — are measured passively from the same video, which is why a report
+lists more findings than there were things to do.
 
 Two tests need red-cyan 3-D glasses; two more need a darkened room and can be
 skipped. Everything else runs on a bare webcam in ordinary lighting.

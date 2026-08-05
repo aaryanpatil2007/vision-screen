@@ -418,3 +418,42 @@ def test_camera_distance_geometry_round_trips(server, browser_ctx):
 def test_distance_check_is_silent_until_it_has_samples(server, browser_ctx):
     page, _ = _page(browser_ctx, server)
     assert page.get_attribute("#distanceCheck", "hidden") is not None
+
+
+def test_advertised_test_count_matches_what_a_run_produces(server, browser_ctx):
+    """The home page, the README and the report each quote a count, and they
+    have already drifted apart once — the page said thirteen while a report
+    listed eighteen. Both were describing real things (guided steps versus
+    total findings), but a reader comparing them assumes one is wrong.
+
+    This pins the advertised number to the modules that can actually emit a
+    finding, so adding a module without updating the copy fails here.
+    """
+    import re
+    from pathlib import Path
+
+    words = {"thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
+             "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20}
+
+    page, _ = _page(browser_ctx, server)
+    eyebrow = page.inner_text(".eyebrow").lower()
+    # match the word immediately before "tests" — a bare scan picks up
+    # "fifteen minutes" and compares the duration to the module count
+    m = re.search(r"(\w+)\s+tests?\b", eyebrow)
+    advertised = words.get(m.group(1)) if m else None
+    assert advertised is not None, f"no test count in the eyebrow: {eyebrow!r}"
+
+    # count the modules that can emit a finding, with acuity counted three
+    # times (binocular, right, left) and sclera excluded — it is implemented
+    # but not yet wired into the analyzer, because it needs a white reference
+    # the capture protocol does not collect
+    src = Path("src/visionscreen")
+    modules = set()
+    for f in list(src.rglob("*.py")):
+        modules |= set(re.findall(r'module="([^"]+)"', f.read_text()))
+    modules.discard("sclera appearance")
+    expected = len(modules) + 2
+
+    assert advertised == expected, (
+        f"home page advertises {advertised} tests, analyser can emit {expected} "
+        f"({sorted(modules)})")
