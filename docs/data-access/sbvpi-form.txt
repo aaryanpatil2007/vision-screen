@@ -1,0 +1,86 @@
+﻿To:
+Matej Vitek
+Computer Vision Laboratory
+Faculty of Computer and Information Science
+University of Ljubljana
+Večna pot 113
+SI-1000 Ljubljana
+Slovenia, EU
+E-mail: matej.vitek@fri.uni-lj.si 
+Hereinafter called the PROVIDER
+
+
+
+
+From (please, use capital letters only):
+Name:
+	 
+	Organisation:
+	 
+	Address:
+	 
+	 
+	 
+	Country:
+	 
+	E-mail:
+	 
+	
+
+Signatory for the Data Processing Agreement:
+	 
+	
+
+Hereinafter called the LICENSEE
+
+
+
+
+Subject: License to use the SBVPI DATASET
+
+
+Please, describe the purpose of your research for which you will use the SBVPI dataset and the proposed duration of the data processing:
+
+
+
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+Upon positive evaluation of the Data Access Request, the PROVIDER agrees to provide the link to the SBVPI DATASET to the LICENSEE and the LICENSEE agrees:
+1. That the nominated signatory will, beforehand, sign a Data Access and Processing Agreement, which will specifying the scope, nature, purpose, and duration of the processing, define safeguards to be put in place by the LICENSEE for the protection of the SBVPI DATASET, and set limitations to the data processing. 
+2. That the LICENSEE will not redistribute the provided link.
+3. That the LICENSEE will not redistribute the dataset or its parts.
+4. That the LICENSEE will use the dataset for non-commercial research and only for the purposes specified in this request; otherwise the LICENSEE will obtain authorisation from the PROVIDER beforehand.
+5. That the LICENSEE will include the following acknowledgement in all eventual publications based on the results gained using the dataset:
+»The images from the SBVPI DATASET used in this work have been provided by the University of Ljubljana, Slovenia [1,2,3].«
+and a proper reference will be added in the reference section:
+1. Matej Vitek, Peter Rot, Vitomir Štruc and Peter Peer: »A Comprehensive Investigation into Sclera Biometrics: A Novel Dataset and Performance Study« Neural Computing and Applications, Springer 2020.
+2. Peter Rot, Matej Vitek, Klemen Grm, Žiga Emeršič, Peter Peer and Vitomir Štruc: »Deep Sclera Segmentation and Recognition« In: Christoph Busch, Sébastien Marcel, Andreas Uhl, Raymond Veldhuis (Eds.), Handbook of Vascular Biometrics, Springer 2020.
+3. Peter Rot, Žiga Emeršič, Vitomir Štruc, and Peter Peer: »Deep Multi-class Eye Segmentation for Ocular Biometrics« IEEE International Work Conference on Bioinspired Intelligence (IWOBI), 2018.
+6. That the LICENSEE will supply the PROVIDER with the copies of such publications.
+
+
+
+
+Date:                                        Signature of the LICENSEE:
+
+
+_____________________       __________________________________________________

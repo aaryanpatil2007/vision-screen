@@ -1,0 +1,86 @@
+﻿To:
+Matej Vitek
+Computer Vision Laboratory
+Faculty of Computer and Information Science
+University of Ljubljana
+Večna pot 113
+SI-1000 Ljubljana
+Slovenia, EU
+E-mail: matej.vitek@fri.uni-lj.si
+Hereinafter called the PROVIDER
+
+
+
+
+From (please, use capital letters only):
+Name:
+	 
+	Organisation:
+	 
+	Address:
+	 
+	 
+	 
+	Country:
+	 
+	E-mail:
+	 
+	
+
+Signatory for the Data Processing Agreement:
+	 
+	
+
+Hereinafter called the LICENSEE
+
+
+
+
+Subject: License to use the MOBIUS DATASET
+
+
+Please, describe the purpose of your research for which you will use the MOBIUS dataset and the proposed duration of the data processing:
+
+
+
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+Upon positive evaluation of the Data Access Request, the PROVIDER agrees to provide the link to the MOBIUS DATASET to the LICENSEE and the LICENSEE agrees:
+1. That the nominated signatory will, beforehand, sign a Data Access and Processing Agreement, which will specifying the scope, nature, purpose, and duration of the processing, define safeguards to be put in place by the LICENSEE for the protection of the MOBIUS DATASET, and set limitations to the data processing. 
+2. That the LICENSEE will not redistribute the provided link.
+3. That the LICENSEE will not redistribute the dataset or its parts. Limited publication for demonstrative purposes (such as figures in an article or paper) is allowed, but must use sufficiently scaled down or watermarked images, such that the identity of the individuals can not be discerned from them.
+4. That the LICENSEE will use the dataset for non-commercial research and only for the purposes specified in this request; otherwise the LICENSEE will obtain authorisation from the PROVIDER beforehand.
+5. That the LICENSEE will include the following acknowledgement in all eventual publications based on the results gained using the dataset:
+»The images from the MOBIUS DATASET used in this work have been provided by the University of Ljubljana, Slovenia [1,2,3].«
+and a proper reference will be added in the reference section:
+1. Matej Vitek, Matic Bizjak, Peter Peer, and Vitomir Štruc: »IPAD: Iterative Pruning with Activation Deviation for Sclera Biometrics«. Journal of King Saud University – Computer and Information Sciences (JKSU-CIS), Elsevier 2023.
+2. Matej Vitek, Abhijit Das, Diego Rafael Lucio, Luiz Antonio Zanlorensi, David Menotti, Jalil Nourmohammadi Khiarak, Mohsen Akbari Shahpar, Meysem Asgari-Chenaghlu, Farhang Jaryani, Juan E. Tapia, Andres Valenzuela, Caiyong Wang, Yunlong Wang, Zhaofeng He, Zhenan Sun, Fadi Boutros, Naser Damer, Jonas Henry Grebe, Arjan Kuijper, Kiran Raja, Gourav Gupta, Georgios Zampoukis, Lazaros Tsochatzidis, Ioannis Pratikakis, S. V. Aruna Kumar, B. S. Harish, Umapada Pal, Peter Peer, and Vitomir Štruc: »Exploring Bias in Sclera Segmentation Models: A Group Evaluation Approach«. IEEE Transactions on Information Forensics and Security (TIFS), 2022.
+3. Matej Vitek, Abhijit Das, Yann Pourcenoux, Alexandre Missler, Calvin Paumier, Sumanta Das, Ishita De Ghosh, Diego R. Lucio, Luiz A. Zanlorensi Jr., David Menotti, Fadi Boutros, Naser Damer, Jonas Henry Grebe, Arjan Kuijper, Junxing Hu, Yong He, Caiyong Wang, Hongda Liu, Yunlong Wang, Zhenan Sun, Daile Osorio-Roig, Christian Rathgeb, Christoph Busch, Juan Tapia Farias, Andres Valenzuela, Georgios Zampoukis, Lazaros Tsochatzidis, Ioannis Pratikakis, Sabari Nathan, R Suganya, Vineet Mehta, Abhinav Dhall, Kiran Raja, Gourav Gupta, Jalil Nourmohammadi Khiarak, Mohsen Akbari-Shahper, Farhang Jaryani, Meysam Asgari-Chenaghlu, Ritesh Vyas, Sristi Dakshit, Sagnik Dakshit, Peter Peer, Umapada Pal, and Vitomir Štruc: »SSBC 2020: Sclera Segmentation Benchmarking Competition in the Mobile Environment«. IEEE International Joint Conference on Biometrics (IJCB), 2020.
+6. That the LICENSEE will supply the PROVIDER with the copies of such publications.
+
+
+
+
+Date:                                        Signature of the LICENSEE:
+
+
+_____________________       __________________________________________________
