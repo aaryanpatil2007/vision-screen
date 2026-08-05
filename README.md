@@ -1,10 +1,29 @@
 # VisionScreen
 
 A vision screening battery that runs in a browser and reads your eyes through a
-webcam. Eighteen tests — letters, contrast, colour, depth, the central field —
-then the camera watches your eyes to measure alignment, tracking, lid position
-and pupil response. It ends with a plain-language interpretation of what the
-measurements might mean, and an explicit account of what they cannot.
+webcam. Thirteen guided tests — letters, contrast, colour, depth, the central
+field — while the camera watches your eyes for alignment, tracking, lid position
+and pupil response, and takes a further set of measurements passively from the
+same video. It ends with a plain-language interpretation of what the numbers
+might mean, and an explicit account of what they cannot.
+
+<p align="center">
+  <img src="docs/media/tracking.gif" alt="Live iris and lid tracking during a session" width="820">
+</p>
+
+<p align="center"><em>Live tracking: iris centre, lid contour and gaze, at frame rate, in the browser.</em></p>
+
+<table>
+<tr>
+<td width="50%"><img src="docs/media/home.png" alt="VisionScreen home screen"></td>
+<td width="50%"><img src="docs/media/test-dial.png" alt="The astigmatic dial test"></td>
+</tr>
+<tr>
+<td><em>Setup — screen calibration, viewing distance, and what the run can and cannot see.</em></td>
+<td><em>The astigmatic dial, one of the thirteen guided tests.</em></td>
+</tr>
+</table>
+
 
 > **Screening tool, not a diagnosis.** It cannot measure eye pressure, examine
 > the retina, or rule out disease, and it has **not been validated against
@@ -108,6 +127,11 @@ Open <http://127.0.0.1:8000>. Everything runs locally; no video leaves the machi
 | Red reflex | between-eye asymmetry (heavily capped — see below) |
 | Viewing distance | measured per frame from iris diameter; corrects acuity |
 | Viewing behaviour | squinting, lean-in, head tilt |
+
+Thirteen of these are guided steps you actively take; the rest — lid position,
+corneal arcus, red reflex, viewing distance and viewing behaviour — are measured
+passively from the same video, which is why a report lists more findings than
+there were tests.
 
 Two tests need red-cyan 3-D glasses; two more need a darkened room and can be
 skipped. Everything else runs on a bare webcam in ordinary lighting.
