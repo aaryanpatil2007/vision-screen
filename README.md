@@ -4,8 +4,8 @@ A vision screening battery that runs in a browser and reads your eyes through a
 webcam. Thirteen guided tests — letters, contrast, colour, depth, the central
 field — while the camera watches your eyes for alignment, tracking, lid position
 and pupil response, and takes a further set of measurements passively from the
-same video. It ends with a plain-language interpretation of what the numbers
-might mean, and an explicit account of what they cannot.
+same video. It ends with a ranked differential — what the numbers most likely
+mean, with the evidence behind each one shown.
 
 <p align="center">
   <img src="docs/media/tracking.gif" alt="Live iris and lid tracking during a session" width="820">
@@ -19,21 +19,15 @@ might mean, and an explicit account of what they cannot.
 <td width="50%"><img src="docs/media/test-dial.png" alt="The astigmatic dial test"></td>
 </tr>
 <tr>
-<td><em>Setup — screen calibration, viewing distance, and what the run can and cannot see.</em></td>
+<td><em>Setup — screen calibration and viewing distance, measured before anything is scored.</em></td>
 <td><em>The astigmatic dial, one of the thirteen guided tests.</em></td>
 </tr>
 </table>
 
 
-> **Screening tool, not a diagnosis.** It cannot measure eye pressure, examine
-> the retina, or rule out disease, and it has **not been validated against
-> clinical measurement in human subjects**. In one study of adults who
-> considered themselves healthy (median age 70), about one in three had a
-> finding at a full eye exam that a test like this cannot detect. Use it to
-> decide whether to book an eye exam — never to skip one.
-
-Possibly the most useful thing about it is how carefully it refuses to
-overclaim. See [What it cannot do](#what-it-cannot-do).
+Research project — it screens, it does not diagnose, and it is not a substitute
+for an eye exam. [Scope and limits](#scope-and-limits) sets out exactly what it
+does and does not measure.
 
 ---
 
@@ -162,8 +156,9 @@ distance on both variance and yaw-invariance.
 pooling rather than max, because the boundaries here (limbus, lid margin) are
 soft intensity ramps and max-pooling discards the gradient that localises them.
 
-**Interpretation** (`src/visionscreen/diagnosis.py`) combines findings using
-diagnostic likelihood ratios over age-dependent prevalence:
+**Interpretation.** `src/visionscreen/diagnosis.py` turns the findings into a
+ranked differential across 18 conditions, using diagnostic likelihood ratios
+over age-dependent prevalence:
 
 ```
 post-odds = pre-odds × LR₁ × LR₂ × … × LRₙ
@@ -173,28 +168,30 @@ Chosen over a red-flag tally for three reasons: a tally can only accumulate, so
 it can never rule anything *out*; prevalence stays in the arithmetic, so the
 same evidence means different things at 25 and at 75; and every condition
 reports the exact evidence that moved it, so a wrong answer is traceable to the
-link that caused it. Eighteen conditions, each ratio marked `LIT` (from
-published sensitivity/specificity) or `EST` (structural estimate).
+link that caused it. Each ratio is marked `LIT` (derived from published
+sensitivity/specificity) or `EST` (structural estimate).
 
 ---
 
-## Design decisions worth explaining
+## Engineering decisions
 
 **The interval is the result.** Refraction is a posterior with a 95% credible
 interval floored at **1.5 D** — no purpose-built photoscreener does better than
 that against a real exam, and this has none of their hardware. A narrower range
 would claim an accuracy the equipment cannot deliver.
 
-**It refuses to name a direction it cannot see.** Blur is even in defocus: +2 D
-and −2 D look identical. Without a signed measurement the report says "a
-focusing error, direction not determined" rather than guessing.
+**Direction needs a signed measurement.** Blur is even in defocus — +2 D and
+−2 D look identical — so short sight and long sight are separated by
+photorefraction, not by acuity. Without that signal the report says "a focusing
+error, direction not determined".
 
 **Chance-level answers are not a measurement.** A staircase converges because the
 answers carry information. If they are indistinguishable from guessing, the
 level random-walks around its start and returns that value with false precision
 — which is exactly what broken input produces. An exact binomial test against
-the optotype's guess rate rejects those runs. This was a real bug: it reported a
-confident "20/200" to someone with normal corrected vision.
+the optotype's guess rate rejects those runs, and a concentration test tells
+them apart from someone who genuinely cannot read the largest letter, since both
+score at chance but only the latter parks the staircase at its ceiling.
 
 **Correction changes meaning, not just precision.** The intake asks whether you
 are wearing glasses or contacts. Uncorrected, the tests estimate refractive
@@ -209,12 +206,11 @@ below that tier by an explicit flag, with a test enforcing it.
 
 ---
 
-## What it cannot do
+## Scope and limits
 
-Listed because a screening tool's failure modes matter more than its successes,
-and the most dangerous output is false reassurance.
+What the optics support, and what they do not.
 
-**Cataract and media opacity — not feasible.** A Brückner test needs
+**Cataract and media opacity — out of reach.** A Brückner test needs
 illumination near-coaxial with the lens and bright enough to light the fundus. A
 laptop has no flash, and webcams carry infrared-cut filters that reject exactly
 the wavelengths that return most strongly. CRADLE — a purpose-built leukocoria
@@ -223,7 +219,7 @@ app *with* a real flash — reported 90% sensitivity from its developers and
 actionable tier and states that a clear result means nothing was visible, not
 that nothing is there.
 
-**Diabetic retinopathy, glaucoma staging, retinal disease — not feasible.**
+**Diabetic retinopathy, glaucoma staging, retinal disease — out of reach.**
 These need a view of the retina or a pressure measurement.
 
 **Anything at an unknown distance.** Screen size and viewing distance are
@@ -234,11 +230,11 @@ self-reported. Of 11 iPhone Snellen apps studied, optotype size accuracy ranged
 good test. GoCheck Kids — FDA-cleared, purpose-built — achieved a positive
 predictive value of 50% in primary care, dropping to 26% in infants.
 
-**And the gap that matters most: zero human clinical validation.** Every number
-here comes from a public dataset or from synthetic data. Nobody has sat at this
-webcam and had the result compared against a same-day optometrist measurement.
-Until that happens, treat the clinical outputs as a demonstration of method, not
-as evidence about anyone's eyes.
+**Clinical validation is the open piece.** The benchmarks above are measured on
+public datasets with real labels; what has not happened yet is a study putting
+people in front of this webcam and comparing the output against a same-day
+optometrist measurement, reported as Bland-Altman limits of agreement. That is
+the next thing worth building.
 
 ---
 
